@@ -1,0 +1,519 @@
+---
+title: "Unity中Animator的详细用法"
+date: "2024-12-20"
+category: "unity"
+tags: ["Unity", "Animator", "动画", "状态机", "游戏开发", "C#"]
+description: "深入讲解Unity Animator组件的使用，包括Animator Controller、状态机、参数控制、动画层、混合树等高级特性"
+featured: true
+---
+
+# Unity中Animator的详细用法
+
+## 概述
+
+Animator 是 Unity 中用于控制角色动画的核心组件，它基于状态机（State Machine）的概念，可以管理复杂的动画逻辑。Animator 配合 Animator Controller 使用，提供了强大的动画控制能力。
+
+## Animator 组件基础
+
+### 添加 Animator 组件
+
+1. 选择需要添加动画的 GameObject
+2. 在 Inspector 面板点击 "Add Component"
+3. 搜索并添加 "Animator" 组件
+4. 将 Animator Controller 资源拖拽到 Controller 字段
+
+### Animator 组件属性
+
+- **Controller**: Animator Controller 资源引用
+- **Avatar**: 用于人形动画的 Avatar 资源
+- **Apply Root Motion**: 是否应用根运动
+- **Update Mode**: 更新模式（Normal、Animate Physics、Unscaled Time）
+- **Culling Mode**: 剔除模式（Always Animate、Cull Update Transforms、Cull Completely Transforms）
+
+## Animator Controller 基础
+
+### 创建 Animator Controller
+
+1. 在 Project 窗口右键
+2. 选择 Create > Animator Controller
+3. 双击打开 Animator 窗口
+
+### Animator 窗口
+
+Animator 窗口包含以下区域：
+- **状态区域**：显示所有动画状态
+- **转换箭头**：表示状态之间的转换
+- **参数面板**：定义控制参数
+- **层级面板**：管理动画层
+
+## 动画状态（States）
+
+### 基础状态类型
+
+#### Entry 状态
+- 进入状态机的入口点
+- 自动连接到默认状态
+
+#### Exit 状态
+- 退出状态机的出口点
+- 用于结束动画流程
+
+#### Any State
+- 可以从任何状态转换到目标状态
+- 常用于死亡、受伤等全局状态
+
+#### 普通状态
+- 包含具体的动画片段
+- 可以设置动画属性
+
+### 创建和配置状态
+
+```csharp
+// 在代码中获取 Animator 组件
+Animator animator = GetComponent<Animator>();
+
+// 设置触发器
+animator.SetTrigger("Jump");
+
+// 设置布尔值
+animator.SetBool("IsRunning", true);
+
+// 设置浮点数
+animator.SetFloat("Speed", 5.5f);
+
+// 设置整数
+animator.SetInteger("State", 2);
+```
+
+## 状态转换（Transitions）
+
+### 创建转换
+
+1. 右键点击源状态
+2. 选择 "Make Transition"
+3. 点击目标状态
+4. 在 Inspector 面板配置转换条件
+
+### 转换条件
+
+转换条件基于 Animator 参数：
+
+- **Bool**: 布尔值条件
+- **Int**: 整数条件（等于、不等于、大于、小于）
+- **Float**: 浮点数条件（大于、小于）
+- **Trigger**: 触发器条件
+
+### 转换设置
+
+- **Has Exit Time**: 是否等待当前动画播放完成
+- **Exit Time**: 退出时间点（0-1）
+- **Transition Duration**: 转换持续时间
+- **Interruption Source**: 中断源
+- **Ordered Interruption**: 有序中断
+
+### 代码示例
+
+```csharp
+public class PlayerController : MonoBehaviour
+{
+    private Animator animator;
+    private bool isRunning = false;
+    private float speed = 0f;
+    
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+    }
+    
+    void Update()
+    {
+        // 检测输入
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            animator.SetTrigger("Jump");
+        }
+        
+        // 检测移动
+        float horizontal = Input.GetAxis("Horizontal");
+        speed = Mathf.Abs(horizontal);
+        animator.SetFloat("Speed", speed);
+        
+        // 检测跑步
+        isRunning = Input.GetKey(KeyCode.LeftShift);
+        animator.SetBool("IsRunning", isRunning);
+    }
+}
+```
+
+## Animator 参数
+
+### 参数类型
+
+1. **Float**: 浮点数，用于连续值（如速度、角度）
+2. **Int**: 整数，用于离散值（如状态编号）
+3. **Bool**: 布尔值，用于开关状态（如是否跑步）
+4. **Trigger**: 触发器，用于一次性事件（如跳跃、攻击）
+
+### 参数设置
+
+在 Animator 窗口的 Parameters 面板：
+- 点击 "+" 添加参数
+- 选择参数类型
+- 设置参数名称和默认值
+
+### 参数使用示例
+
+```csharp
+public class AnimationController : MonoBehaviour
+{
+    private Animator animator;
+    
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+    }
+    
+    public void PlayAttack()
+    {
+        animator.SetTrigger("Attack");
+    }
+    
+    public void SetMovementSpeed(float speed)
+    {
+        animator.SetFloat("Speed", speed);
+    }
+    
+    public void SetIsGrounded(bool grounded)
+    {
+        animator.SetBool("IsGrounded", grounded);
+    }
+    
+    public void SetState(int state)
+    {
+        animator.SetInteger("State", state);
+    }
+}
+```
+
+## 动画层（Layers）
+
+### 层的作用
+
+动画层允许同时播放多个动画，常用于：
+- 上半身和下半身分离控制
+- 表情动画叠加
+- 装备动画叠加
+
+### 创建和配置层
+
+1. 在 Animator 窗口点击 "Layers" 标签
+2. 点击 "+" 添加新层
+3. 设置层的权重（Weight）
+4. 设置混合模式（Override 或 Additive）
+
+### 层混合模式
+
+- **Override**: 覆盖模式，完全替换基础层动画
+- **Additive**: 叠加模式，在基础层动画上叠加
+
+### 代码控制层
+
+```csharp
+public class LayerController : MonoBehaviour
+{
+    private Animator animator;
+    private int upperBodyLayerIndex;
+    
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+        upperBodyLayerIndex = animator.GetLayerIndex("UpperBody");
+    }
+    
+    public void PlayUpperBodyAnimation(string stateName)
+    {
+        animator.Play(stateName, upperBodyLayerIndex);
+    }
+    
+    public void SetLayerWeight(int layerIndex, float weight)
+    {
+        animator.SetLayerWeight(layerIndex, weight);
+    }
+}
+```
+
+## 混合树（Blend Trees）
+
+### 混合树的作用
+
+混合树用于在多个动画之间平滑过渡，常用于：
+- 不同速度的移动动画
+- 不同方向的移动动画
+- 不同角度的转向动画
+
+### 创建混合树
+
+1. 在 Animator 窗口右键
+2. 选择 Create State > From New Blend Tree
+3. 双击混合树进入编辑
+4. 添加动画片段和参数
+
+### 1D 混合树
+
+用于单一参数的混合，如速度：
+
+```csharp
+// 设置速度参数，混合树会根据值混合不同动画
+animator.SetFloat("Speed", 5.5f);
+// 0-2: Idle
+// 2-5: Walk
+// 5+: Run
+```
+
+### 2D 混合树
+
+用于两个参数的混合，如方向和速度：
+
+```csharp
+// 设置方向和速度
+animator.SetFloat("DirectionX", horizontal);
+animator.SetFloat("DirectionY", vertical);
+animator.SetFloat("Speed", speed);
+```
+
+### 混合树类型
+
+- **1D Simple Directional**: 简单方向混合
+- **2D Simple Directional**: 2D 简单方向混合
+- **2D Freeform Directional**: 2D 自由方向混合
+- **2D Freeform Cartesian**: 2D 自由笛卡尔混合
+
+## 根运动（Root Motion）
+
+### 什么是根运动
+
+根运动是指动画本身包含的位移和旋转信息，而不是通过代码控制 Transform。
+
+### 启用根运动
+
+1. 在 Animator 组件勾选 "Apply Root Motion"
+2. 在动画片段中启用 "Root Transform Position (Y)" 和 "Root Transform Position (XZ)"
+3. 在动画片段中启用 "Root Transform Rotation"
+
+### 使用根运动
+
+```csharp
+public class RootMotionController : MonoBehaviour
+{
+    private Animator animator;
+    private CharacterController controller;
+    
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+        controller = GetComponent<CharacterController>();
+    }
+    
+    void OnAnimatorMove()
+    {
+        // 应用根运动
+        Vector3 deltaPosition = animator.deltaPosition;
+        Quaternion deltaRotation = animator.deltaRotation;
+        
+        controller.Move(deltaPosition);
+        transform.rotation *= deltaRotation;
+    }
+}
+```
+
+## 动画事件（Animation Events）
+
+### 添加动画事件
+
+1. 在 Animation 窗口选择动画片段
+2. 在时间轴上选择时间点
+3. 点击 "Add Event" 按钮
+4. 选择要调用的函数
+
+### 接收动画事件
+
+```csharp
+public class AnimationEventHandler : MonoBehaviour
+{
+    // 动画事件回调函数
+    public void OnFootstep()
+    {
+        Debug.Log("Footstep sound");
+        // 播放脚步声
+    }
+    
+    public void OnAttackHit()
+    {
+        Debug.Log("Attack hit");
+        // 检测攻击命中
+    }
+    
+    public void OnAnimationEnd()
+    {
+        Debug.Log("Animation ended");
+        // 动画结束处理
+    }
+}
+```
+
+## 动画覆盖（Animation Override）
+
+### 创建 Override Controller
+
+1. 右键点击 Animator Controller
+2. 选择 Create > Animator Override Controller
+3. 设置 Original Controller
+4. 替换需要覆盖的动画片段
+
+### 使用 Override Controller
+
+```csharp
+public class OverrideControllerExample : MonoBehaviour
+{
+    public AnimatorOverrideController overrideController;
+    private Animator animator;
+    
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+        animator.runtimeAnimatorController = overrideController;
+    }
+}
+```
+
+## 性能优化
+
+### 优化建议
+
+1. **减少状态数量**：合并相似的状态
+2. **优化转换条件**：使用简单的参数条件
+3. **合理使用层**：不要创建过多的层
+4. **禁用不必要的更新**：使用 Culling Mode
+5. **使用动画压缩**：在导入设置中压缩动画
+
+### Culling Mode 设置
+
+```csharp
+// 在代码中设置剔除模式
+animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
+// AlwaysAnimate: 始终更新
+// CullUpdateTransforms: 不可见时只更新根节点
+// CullCompletelyTransforms: 不可见时完全不更新
+```
+
+## 实际应用示例
+
+### 角色控制器
+
+```csharp
+public class CharacterAnimator : MonoBehaviour
+{
+    private Animator animator;
+    private CharacterController controller;
+    private bool isGrounded;
+    
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+        controller = GetComponent<CharacterController>();
+    }
+    
+    void Update()
+    {
+        // 检测是否在地面
+        isGrounded = controller.isGrounded;
+        animator.SetBool("IsGrounded", isGrounded);
+        
+        // 检测移动
+        float horizontal = Input.GetAxis("Horizontal");
+        float vertical = Input.GetAxis("Vertical");
+        Vector3 move = new Vector3(horizontal, 0, vertical);
+        float speed = move.magnitude;
+        
+        animator.SetFloat("Speed", speed);
+        
+        // 检测跳跃
+        if (Input.GetButtonDown("Jump") && isGrounded)
+        {
+            animator.SetTrigger("Jump");
+        }
+        
+        // 检测攻击
+        if (Input.GetButtonDown("Fire1"))
+        {
+            animator.SetTrigger("Attack");
+        }
+    }
+}
+```
+
+### 状态同步
+
+```csharp
+public class StateSynchronizer : MonoBehaviour
+{
+    private Animator animator;
+    private int currentState;
+    
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+    }
+    
+    void Update()
+    {
+        // 获取当前状态
+        AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+        currentState = stateInfo.fullPathHash;
+        
+        // 检查状态
+        if (stateInfo.IsName("Attack"))
+        {
+            // 攻击状态处理
+        }
+        
+        // 检查状态进度
+        float normalizedTime = stateInfo.normalizedTime;
+        if (normalizedTime > 0.9f && stateInfo.IsName("Attack"))
+        {
+            // 攻击动画即将结束
+        }
+    }
+}
+```
+
+## 常见问题解决
+
+### 动画不播放
+
+1. 检查 Animator Controller 是否正确分配
+2. 检查动画片段是否正确导入
+3. 检查状态转换条件是否正确
+4. 检查是否有其他状态阻止转换
+
+### 动画卡顿
+
+1. 检查动画片段是否过长
+2. 检查是否有过多的状态转换
+3. 检查 Update Mode 设置
+4. 检查是否有性能瓶颈
+
+### 根运动不工作
+
+1. 检查 "Apply Root Motion" 是否勾选
+2. 检查动画片段中的根运动设置
+3. 检查是否实现了 OnAnimatorMove 方法
+
+## 总结
+
+Animator 是 Unity 中强大的动画控制系统，通过合理使用状态机、参数、层和混合树，可以创建复杂的动画逻辑。掌握 Animator 的使用方法，能够大大提高角色动画的质量和开发效率。
+
+## 参考资料
+
+- [Unity Animator 官方文档](https://docs.unity3d.com/Manual/class-AnimatorController.html)
+- [Unity 动画系统教程](https://learn.unity.com/tutorial/animation)

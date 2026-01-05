@@ -1,0 +1,109 @@
+---
+title: "Unity 性能优化实战"
+date: "2024-01-25"
+category: "unity"
+tags: ["Unity", "性能优化", "游戏开发", "最佳实践"]
+description: "分享 Unity 游戏开发中的性能优化技巧和实战经验"
+featured: true
+---
+
+# Unity 性能优化实战
+
+## 概述
+
+性能优化是 Unity 游戏开发中的重要环节。本文将分享一些实用的性能优化技巧。
+
+## 1. 对象池模式
+
+使用对象池可以避免频繁创建和销毁对象，显著提升性能。
+
+### 实现示例
+
+```csharp
+public class ObjectPool : MonoBehaviour
+{
+    public GameObject prefab;
+    private Queue<GameObject> pool = new Queue<GameObject>();
+    private int poolSize = 10;
+
+    void Start()
+    {
+        for (int i = 0; i < poolSize; i++)
+        {
+            GameObject obj = Instantiate(prefab);
+            obj.SetActive(false);
+            pool.Enqueue(obj);
+        }
+    }
+
+    public GameObject Get()
+    {
+        if (pool.Count > 0)
+        {
+            GameObject obj = pool.Dequeue();
+            obj.SetActive(true);
+            return obj;
+        }
+        return Instantiate(prefab);
+    }
+
+    public void Return(GameObject obj)
+    {
+        obj.SetActive(false);
+        pool.Enqueue(obj);
+    }
+}
+```
+
+## 2. 批处理优化
+
+### Draw Call 优化
+
+- 使用静态批处理（Static Batching）
+- 合并网格（Mesh Combining）
+- 使用图集（Atlas）减少纹理切换
+
+### 代码优化
+
+```csharp
+// 使用 StringBuilder 代替字符串拼接
+StringBuilder sb = new StringBuilder();
+sb.Append("Score: ");
+sb.Append(score);
+string result = sb.ToString();
+```
+
+## 3. 内存管理
+
+### 避免频繁分配
+
+- 缓存常用组件引用
+- 使用对象池
+- 避免在 Update 中分配内存
+
+### 示例
+
+```csharp
+// 不好的做法
+void Update()
+{
+    GameObject.Find("Player"); // 每次调用都会查找
+}
+
+// 好的做法
+private GameObject player;
+void Start()
+{
+    player = GameObject.Find("Player");
+}
+```
+
+## 4. 物理优化
+
+- 合理使用物理层（Physics Layers）
+- 减少不必要的碰撞检测
+- 使用触发器代替碰撞器（如果不需要物理响应）
+
+## 总结
+
+性能优化需要根据具体项目情况进行分析和优化。建议使用 Unity Profiler 工具来定位性能瓶颈。

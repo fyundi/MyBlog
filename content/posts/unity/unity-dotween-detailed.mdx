@@ -1,0 +1,495 @@
+---
+title: "Unity中DOTween及DOTween Pro的详细用法"
+date: "2024-12-20"
+category: "unity"
+tags: ["Unity", "DOTween", "动画", "游戏开发", "C#"]
+description: "详细介绍DOTween和DOTween Pro在Unity中的使用方法，包括基础API、高级特性、缓动曲线和实际应用场景"
+featured: true
+---
+
+# Unity中DOTween及DOTween Pro的详细用法
+
+## 概述
+
+DOTween 是 Unity 中最流行的补间动画插件之一，提供了简洁的 API 和强大的功能。DOTween Pro 是 DOTween 的增强版本，提供了更多高级特性，如路径动画、材质动画等。
+
+## 安装和导入
+
+### 安装DOTween
+
+1. 通过 Unity Asset Store 购买并导入
+2. 或通过 Package Manager 导入
+3. 导入后会自动打开 DOTween Utility Panel，点击 "Setup DOTween" 完成初始化
+
+### DOTween Pro 特性
+
+DOTween Pro 包含以下额外功能：
+- **路径动画**：沿路径移动对象
+- **材质动画**：动画化材质属性
+- **文本动画**：逐字显示文本
+- **UI 扩展**：更多 UI 相关动画方法
+
+## 基础用法
+
+### Transform 动画
+
+#### 位置动画
+
+```csharp
+using DG.Tweening;
+using UnityEngine;
+
+public class DOTweenExample : MonoBehaviour
+{
+    void Start()
+    {
+        // 移动到指定位置
+        transform.DOMove(new Vector3(10, 0, 0), 1f);
+        
+        // 移动到相对位置
+        transform.DOMoveX(10, 1f);
+        transform.DOMoveY(5, 1f);
+        transform.DOMoveZ(3, 1f);
+        
+        // 本地坐标移动
+        transform.DOLocalMove(new Vector3(5, 0, 0), 1f);
+    }
+}
+```
+
+#### 旋转动画
+
+```csharp
+// 旋转到指定角度
+transform.DORotate(new Vector3(0, 360, 0), 2f, RotateMode.FastBeyond360);
+
+// 绕轴旋转
+transform.DORotateX(90, 1f);
+transform.DORotateY(180, 1f);
+transform.DORotateZ(360, 2f);
+
+// 使用四元数
+transform.DORotateQuaternion(Quaternion.Euler(0, 90, 0), 1f);
+```
+
+#### 缩放动画
+
+```csharp
+// 缩放到指定大小
+transform.DOScale(new Vector3(2, 2, 2), 1f);
+
+// 统一缩放
+transform.DOScale(2f, 1f);
+
+// 分别缩放各轴
+transform.DOScaleX(2f, 1f);
+transform.DOScaleY(1.5f, 1f);
+transform.DOScaleZ(0.5f, 1f);
+```
+
+### UI 动画
+
+```csharp
+using UnityEngine.UI;
+using DG.Tweening;
+
+public class UIAnimationExample : MonoBehaviour
+{
+    public Image image;
+    public Text text;
+    public RectTransform rectTransform;
+    
+    void Start()
+    {
+        // 透明度动画
+        image.DOFade(0.5f, 1f);
+        
+        // 颜色动画
+        image.DOColor(Color.red, 1f);
+        
+        // 文本颜色动画
+        text.DOColor(Color.blue, 1f);
+        
+        // RectTransform 位置动画
+        rectTransform.DOAnchorPos(new Vector2(100, 100), 1f);
+        
+        // 尺寸动画
+        rectTransform.DOSizeDelta(new Vector2(200, 200), 1f);
+    }
+}
+```
+
+## 缓动曲线（Easing）
+
+DOTween 提供了丰富的缓动曲线，让动画更加自然。
+
+### 常用缓动曲线
+
+#### 基础曲线
+
+```csharp
+// 线性动画（匀速）
+transform.DOMoveX(10, 1f).SetEase(Ease.Linear);
+```
+
+#### 二次方曲线（Quad）
+
+```csharp
+// 平滑加速
+transform.DOMoveX(10, 1f).SetEase(Ease.InQuad);
+
+// 平滑减速（最常用）
+transform.DOMoveX(10, 1f).SetEase(Ease.OutQuad);
+
+// 先加速后减速
+transform.DOMoveX(10, 1f).SetEase(Ease.InOutQuad);
+```
+
+#### 三次方曲线（Cubic）
+
+```csharp
+// 更明显的加速
+transform.DOMoveX(10, 1f).SetEase(Ease.InCubic);
+
+// 更明显的减速（常用于UI进入）
+transform.DOMoveX(10, 1f).SetEase(Ease.OutCubic);
+
+// 更平滑的过渡
+transform.DOMoveX(10, 1f).SetEase(Ease.InOutCubic);
+```
+
+#### 正弦曲线（Sine）
+
+```csharp
+// 最自然的动画效果
+transform.DOMoveX(10, 1f).SetEase(Ease.InOutSine);
+```
+
+#### 回弹效果（Back）
+
+```csharp
+// 结束时略微超出目标，然后回弹（常用于UI弹出）
+transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack);
+```
+
+#### 弹跳效果（Bounce）
+
+```csharp
+// 结束时产生弹跳效果（常用于物体落地）
+transform.DOMoveY(0, 1f).SetEase(Ease.OutBounce);
+```
+
+#### 弹性效果（Elastic）
+
+```csharp
+// 结束时产生弹性振荡
+transform.DOScale(1f, 0.5f).SetEase(Ease.OutElastic);
+
+// 带参数的弹性效果
+transform.DOScale(1f, 0.5f).SetEase(Ease.OutElastic, 1.5f, 0.5f);
+// amplitude = 1.5f (振幅), period = 0.5f (周期)
+```
+
+### 自定义动画曲线
+
+```csharp
+// 使用 AnimationCurve
+AnimationCurve customCurve = new AnimationCurve(
+    new Keyframe(0, 0),
+    new Keyframe(0.5f, 0.8f),
+    new Keyframe(1, 1)
+);
+transform.DOMoveX(10, 1f).SetEase(customCurve);
+```
+
+## 链式调用和回调
+
+### 链式动画
+
+```csharp
+// 顺序执行多个动画
+transform.DOMoveX(10, 1f)
+    .OnComplete(() => {
+        transform.DOMoveY(5, 1f)
+            .OnComplete(() => {
+                transform.DOScale(2f, 1f);
+            });
+    });
+
+// 使用 Append 和 Join
+Sequence sequence = DOTween.Sequence();
+sequence.Append(transform.DOMoveX(10, 1f));
+sequence.Append(transform.DOMoveY(5, 1f));
+sequence.Join(transform.DOScale(2f, 1f)); // 与上一个动画同时执行
+```
+
+### 回调函数
+
+```csharp
+transform.DOMoveX(10, 1f)
+    .OnStart(() => {
+        Debug.Log("动画开始");
+    })
+    .OnUpdate(() => {
+        Debug.Log("动画进行中");
+    })
+    .OnComplete(() => {
+        Debug.Log("动画完成");
+    })
+    .OnKill(() => {
+        Debug.Log("动画被终止");
+    });
+```
+
+## Sequence（序列）
+
+Sequence 用于创建复杂的动画序列。
+
+```csharp
+Sequence sequence = DOTween.Sequence();
+
+// 添加动画到序列
+sequence.Append(transform.DOMoveX(10, 1f));
+sequence.Append(transform.DOMoveY(5, 1f));
+
+// 插入动画（在指定时间点）
+sequence.Insert(0.5f, transform.DOScale(2f, 1f));
+
+// 在指定位置插入
+sequence.InsertCallback(1f, () => {
+    Debug.Log("1秒后执行");
+});
+
+// 设置延迟
+sequence.AppendInterval(0.5f);
+
+// 循环
+sequence.SetLoops(3, LoopType.Restart);
+
+// 播放
+sequence.Play();
+```
+
+## DOTween Pro 高级特性
+
+### 路径动画
+
+```csharp
+using DG.Tweening;
+using DG.Tweening.Plugins.Core.PathCore;
+
+public class PathAnimationExample : MonoBehaviour
+{
+    void Start()
+    {
+        // 创建路径点
+        Vector3[] path = new Vector3[] {
+            new Vector3(0, 0, 0),
+            new Vector3(5, 5, 0),
+            new Vector3(10, 0, 0),
+            new Vector3(5, -5, 0),
+            new Vector3(0, 0, 0)
+        };
+        
+        // 沿路径移动
+        transform.DOPath(path, 5f, PathType.CatmullRom)
+            .SetEase(Ease.Linear)
+            .SetLookAt(0.01f); // 朝向移动方向
+    }
+}
+```
+
+### 材质动画
+
+```csharp
+public class MaterialAnimationExample : MonoBehaviour
+{
+    public Material material;
+    
+    void Start()
+    {
+        // 颜色动画
+        material.DOColor(Color.red, "_Color", 1f);
+        
+        // 浮点值动画
+        material.DOFloat(1f, "_Metallic", 1f);
+        
+        // 向量动画
+        material.DOVector(new Vector4(1, 1, 1, 1), "_MainTex_ST", 1f);
+    }
+}
+```
+
+### 文本动画
+
+```csharp
+using UnityEngine.UI;
+using DG.Tweening;
+
+public class TextAnimationExample : MonoBehaviour
+{
+    public Text text;
+    
+    void Start()
+    {
+        // 数字计数动画
+        text.DOCounter(0, 100, 2f);
+        
+        // 文本打字机效果（需要DOTween Pro）
+        text.DOText("Hello World", 2f);
+    }
+}
+```
+
+## 性能优化
+
+### 对象池
+
+```csharp
+// 使用对象池避免频繁创建和销毁
+Tween tween = transform.DOMoveX(10, 1f);
+tween.SetAutoKill(false); // 不自动销毁
+tween.SetRecyclable(true); // 可回收
+
+// 重用动画
+tween.Restart();
+```
+
+### 批量操作
+
+```csharp
+// 批量创建动画
+Tween[] tweens = new Tween[10];
+for (int i = 0; i < 10; i++)
+{
+    tweens[i] = transform.DOMoveX(i * 10, 1f);
+}
+
+// 批量控制
+DOTween.PauseAll();
+DOTween.PlayAll();
+DOTween.KillAll();
+```
+
+### 设置容量
+
+```csharp
+// 预设容量以提高性能
+DOTween.SetTweensCapacity(200, 50); // 200个Tween，50个Sequence
+```
+
+## 实际应用场景
+
+### UI 弹窗动画
+
+```csharp
+public class PopupAnimation : MonoBehaviour
+{
+    public RectTransform popup;
+    
+    public void Show()
+    {
+        popup.localScale = Vector3.zero;
+        popup.DOScale(Vector3.one, 0.3f)
+            .SetEase(Ease.OutBack);
+    }
+    
+    public void Hide()
+    {
+        popup.DOScale(Vector3.zero, 0.3f)
+            .SetEase(Ease.InBack)
+            .OnComplete(() => {
+                gameObject.SetActive(false);
+            });
+    }
+}
+```
+
+### 按钮点击反馈
+
+```csharp
+public class ButtonFeedback : MonoBehaviour
+{
+    public void OnButtonClick()
+    {
+        transform.DOScale(0.9f, 0.1f)
+            .SetEase(Ease.OutQuad)
+            .OnComplete(() => {
+                transform.DOScale(1f, 0.1f)
+                    .SetEase(Ease.OutBack);
+            });
+    }
+}
+```
+
+### 相机震动
+
+```csharp
+public class CameraShake : MonoBehaviour
+{
+    public Camera mainCamera;
+    
+    public void Shake()
+    {
+        mainCamera.DOShakePosition(0.5f, strength: 0.3f, vibrato: 10);
+    }
+}
+```
+
+## 常用方法总结
+
+### Tween 控制
+
+```csharp
+Tween tween = transform.DOMoveX(10, 1f);
+
+// 播放控制
+tween.Play();
+tween.Pause();
+tween.Restart();
+tween.Rewind();
+tween.Kill();
+
+// 设置
+tween.SetDelay(0.5f); // 延迟
+tween.SetLoops(3, LoopType.Restart); // 循环
+tween.SetAutoKill(false); // 不自动销毁
+tween.SetRecyclable(true); // 可回收
+tween.SetEase(Ease.OutQuad); // 缓动曲线
+tween.SetUpdate(true); // 不受Time.timeScale影响
+```
+
+### 全局设置
+
+```csharp
+// 设置默认缓动
+DOTween.defaultEase = Ease.OutQuad;
+
+// 设置默认循环类型
+DOTween.defaultLoopType = LoopType.Restart;
+
+// 设置时间缩放
+DOTween.timeScale = 0.5f; // 慢动作
+
+// 暂停所有动画
+DOTween.PauseAll();
+
+// 恢复所有动画
+DOTween.PlayAll();
+```
+
+## 注意事项
+
+1. **内存管理**：使用 `SetAutoKill(false)` 和 `SetRecyclable(true)` 可以重用动画，减少GC
+2. **性能考虑**：简单曲线（如 OutQuad）比复杂曲线（如 Elastic）性能更好
+3. **时间缩放**：使用 `SetUpdate(true)` 可以让动画不受 `Time.timeScale` 影响
+4. **清理动画**：在对象销毁时记得调用 `Kill()` 或 `KillAll()` 清理动画
+
+## 总结
+
+DOTween 是 Unity 中非常强大的动画工具，通过简洁的 API 可以快速实现各种动画效果。掌握 DOTween 的基础用法和高级特性，能够大大提高开发效率和动画质量。
+
+## 参考资料
+
+- [DOTween 官方文档](http://dotween.demigiant.com/documentation.php)
+- [缓动函数可视化](https://easings.net/)

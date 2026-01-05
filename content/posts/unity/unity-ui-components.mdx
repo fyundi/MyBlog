@@ -1,0 +1,714 @@
+---
+title: "Unity常用UI小组件实现"
+date: "2024-12-20"
+category: "unity"
+tags: ["Unity", "UI", "组件", "UGUI", "游戏开发", "C#"]
+description: "介绍Unity中常用UI小组件的实现方法，包括进度条、滚动列表、弹窗、提示框、拖拽组件等"
+featured: true
+---
+
+# Unity常用UI小组件实现
+
+## 概述
+
+在 Unity 游戏开发中，UI 组件是用户交互的重要组成部分。本文将介绍一些常用 UI 小组件的实现方法，帮助开发者快速构建功能完善的用户界面。
+
+## 进度条组件
+
+### 基础进度条
+
+```csharp
+using UnityEngine;
+using UnityEngine.UI;
+
+public class ProgressBar : MonoBehaviour
+{
+    [Header("UI References")]
+    public Image fillImage;
+    public Text progressText;
+    
+    [Header("Settings")]
+    public float maxValue = 100f;
+    public float currentValue = 0f;
+    public bool showText = true;
+    public bool smoothFill = true;
+    public float fillSpeed = 2f;
+    
+    private float targetFillAmount = 0f;
+    
+    void Update()
+    {
+        if (smoothFill)
+        {
+            fillImage.fillAmount = Mathf.Lerp(fillImage.fillAmount, targetFillAmount, Time.deltaTime * fillSpeed);
+        }
+        else
+        {
+            fillImage.fillAmount = targetFillAmount;
+        }
+        
+        if (showText && progressText != null)
+        {
+            progressText.text = $"{Mathf.RoundToInt(currentValue)}/{Mathf.RoundToInt(maxValue)}";
+        }
+    }
+    
+    public void SetProgress(float value)
+    {
+        currentValue = Mathf.Clamp(value, 0f, maxValue);
+        targetFillAmount = currentValue / maxValue;
+    }
+    
+    public void SetMaxValue(float value)
+    {
+        maxValue = value;
+        SetProgress(currentValue);
+    }
+    
+    public void AddProgress(float value)
+    {
+        SetProgress(currentValue + value);
+    }
+}
+```
+
+### 分段进度条
+
+```csharp
+using UnityEngine;
+using UnityEngine.UI;
+using System.Collections.Generic;
+
+public class SegmentedProgressBar : MonoBehaviour
+{
+    [System.Serializable]
+    public class Segment
+    {
+        public Image segmentImage;
+        public float threshold;
+        public Color segmentColor;
+    }
+    
+    public List<Segment> segments = new List<Segment>();
+    public Image fillImage;
+    public float currentValue = 0f;
+    public float maxValue = 100f;
+    
+    void Start()
+    {
+        UpdateSegments();
+    }
+    
+    public void SetProgress(float value)
+    {
+        currentValue = Mathf.Clamp(value, 0f, maxValue);
+        fillImage.fillAmount = currentValue / maxValue;
+        UpdateSegments();
+    }
+    
+    void UpdateSegments()
+    {
+        float fillAmount = currentValue / maxValue;
+        
+        foreach (var segment in segments)
+        {
+            if (fillAmount >= segment.threshold)
+            {
+                segment.segmentImage.color = segment.segmentColor;
+            }
+            else
+            {
+                segment.segmentImage.color = Color.gray;
+            }
+        }
+    }
+}
+```
+
+## 滚动列表组件
+
+### 无限滚动列表
+
+```csharp
+using UnityEngine;
+using UnityEngine.UI;
+using System.Collections.Generic;
+
+public class InfiniteScrollList : MonoBehaviour
+{
+    [Header("References")]
+    public ScrollRect scrollRect;
+    public RectTransform content;
+    public GameObject itemPrefab;
+    
+    [Header("Settings")]
+    public int itemCount = 100;
+    public float itemHeight = 100f;
+    public int bufferCount = 5;
+    
+    private List<GameObject> itemPool = new List<GameObject>();
+    private List<ScrollItem> activeItems = new List<ScrollItem>();
+    private float contentHeight;
+    
+    void Start()
+    {
+        InitializeList();
+    }
+    
+    void InitializeList()
+    {
+        contentHeight = itemCount * itemHeight;
+        content.sizeDelta = new Vector2(content.sizeDelta.x, contentHeight);
+        
+        // 创建对象池
+        for (int i = 0; i < bufferCount * 2; i++)
+        {
+            GameObject item = Instantiate(itemPrefab, content);
+            item.SetActive(false);
+            itemPool.Add(item);
+        }
+        
+        UpdateVisibleItems();
+    }
+    
+    void Update()
+    {
+        UpdateVisibleItems();
+    }
+    
+    void UpdateVisibleItems()
+    {
+        float viewportHeight = scrollRect.viewport.rect.height;
+        float scrollPosition = content.anchoredPosition.y;
+        
+        int startIndex = Mathf.FloorToInt(scrollPosition / itemHeight);
+        int endIndex = Mathf.CeilToInt((scrollPosition + viewportHeight) / itemHeight);
+        
+        startIndex = Mathf.Max(0, startIndex - bufferCount);
+        endIndex = Mathf.Min(itemCount - 1, endIndex + bufferCount);
+        
+        // 回收不在范围内的项目
+        for (int i = activeItems.Count - 1; i >= 0; i--)
+        {
+            if (activeItems[i].index < startIndex || activeItems[i].index > endIndex)
+            {
+                ReturnItemToPool(activeItems[i].gameObject);
+                activeItems.RemoveAt(i);
+            }
+        }
+        
+        // 创建新的可见项目
+        for (int i = startIndex; i <= endIndex; i++)
+        {
+            if (!IsItemActive(i))
+            {
+                CreateItem(i);
+            }
+        }
+    }
+    
+    bool IsItemActive(int index)
+    {
+        return activeItems.Exists(item => item.index == index);
+    }
+    
+    void CreateItem(int index)
+    {
+        GameObject item = GetItemFromPool();
+        item.transform.SetParent(content);
+        item.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -index * itemHeight);
+        
+        ScrollItem scrollItem = item.GetComponent<ScrollItem>();
+        if (scrollItem == null)
+        {
+            scrollItem = item.AddComponent<ScrollItem>();
+        }
+        scrollItem.index = index;
+        scrollItem.UpdateContent(index);
+        
+        item.SetActive(true);
+        activeItems.Add(scrollItem);
+    }
+    
+    GameObject GetItemFromPool()
+    {
+        foreach (var item in itemPool)
+        {
+            if (!item.activeSelf)
+            {
+                return item;
+            }
+        }
+        
+        GameObject newItem = Instantiate(itemPrefab, content);
+        itemPool.Add(newItem);
+        return newItem;
+    }
+    
+    void ReturnItemToPool(GameObject item)
+    {
+        item.SetActive(false);
+    }
+}
+
+public class ScrollItem : MonoBehaviour
+{
+    public int index;
+    public Text text;
+    
+    public void UpdateContent(int index)
+    {
+        this.index = index;
+        if (text != null)
+        {
+            text.text = $"Item {index}";
+        }
+    }
+}
+```
+
+## 弹窗组件
+
+### 通用弹窗
+
+```csharp
+using UnityEngine;
+using UnityEngine.UI;
+using DG.Tweening;
+
+public class Popup : MonoBehaviour
+{
+    [Header("References")]
+    public RectTransform popupPanel;
+    public Button closeButton;
+    public Text titleText;
+    public Text contentText;
+    
+    [Header("Animation")]
+    public float showDuration = 0.3f;
+    public float hideDuration = 0.2f;
+    public Ease showEase = Ease.OutBack;
+    public Ease hideEase = Ease.InBack;
+    
+    private System.Action onCloseCallback;
+    
+    void Start()
+    {
+        if (closeButton != null)
+        {
+            closeButton.onClick.AddListener(Close);
+        }
+    }
+    
+    public void Show(string title, string content, System.Action onClose = null)
+    {
+        gameObject.SetActive(true);
+        
+        if (titleText != null)
+        {
+            titleText.text = title;
+        }
+        
+        if (contentText != null)
+        {
+            contentText.text = content;
+        }
+        
+        onCloseCallback = onClose;
+        
+        // 显示动画
+        popupPanel.localScale = Vector3.zero;
+        popupPanel.DOScale(Vector3.one, showDuration)
+            .SetEase(showEase);
+    }
+    
+    public void Close()
+    {
+        // 隐藏动画
+        popupPanel.DOScale(Vector3.zero, hideDuration)
+            .SetEase(hideEase)
+            .OnComplete(() => {
+                gameObject.SetActive(false);
+                onCloseCallback?.Invoke();
+            });
+    }
+}
+```
+
+### 确认对话框
+
+```csharp
+using UnityEngine;
+using UnityEngine.UI;
+
+public class ConfirmDialog : Popup
+{
+    [Header("References")]
+    public Button confirmButton;
+    public Button cancelButton;
+    public Text confirmButtonText;
+    public Text cancelButtonText;
+    
+    private System.Action onConfirmCallback;
+    private System.Action onCancelCallback;
+    
+    void Start()
+    {
+        base.Start();
+        
+        if (confirmButton != null)
+        {
+            confirmButton.onClick.AddListener(OnConfirm);
+        }
+        
+        if (cancelButton != null)
+        {
+            cancelButton.onClick.AddListener(OnCancel);
+        }
+    }
+    
+    public void Show(string title, string content, 
+        string confirmText = "确认", string cancelText = "取消",
+        System.Action onConfirm = null, System.Action onCancel = null)
+    {
+        base.Show(title, content);
+        
+        if (confirmButtonText != null)
+        {
+            confirmButtonText.text = confirmText;
+        }
+        
+        if (cancelButtonText != null)
+        {
+            cancelButtonText.text = cancelText;
+        }
+        
+        onConfirmCallback = onConfirm;
+        onCancelCallback = onCancel;
+    }
+    
+    void OnConfirm()
+    {
+        onConfirmCallback?.Invoke();
+        Close();
+    }
+    
+    void OnCancel()
+    {
+        onCancelCallback?.Invoke();
+        Close();
+    }
+}
+```
+
+## 提示框组件
+
+### Toast 提示
+
+```csharp
+using UnityEngine;
+using UnityEngine.UI;
+using DG.Tweening;
+using System.Collections;
+
+public class Toast : MonoBehaviour
+{
+    [Header("References")]
+    public Text messageText;
+    public Image backgroundImage;
+    
+    [Header("Settings")]
+    public float showDuration = 2f;
+    public float fadeDuration = 0.3f;
+    
+    private RectTransform rectTransform;
+    
+    void Awake()
+    {
+        rectTransform = GetComponent<RectTransform>();
+    }
+    
+    public void Show(string message, float duration = -1f)
+    {
+        if (duration < 0)
+        {
+            duration = showDuration;
+        }
+        
+        if (messageText != null)
+        {
+            messageText.text = message;
+        }
+        
+        gameObject.SetActive(true);
+        
+        // 淡入动画
+        CanvasGroup canvasGroup = GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+        {
+            canvasGroup = gameObject.AddComponent<CanvasGroup>();
+        }
+        
+        canvasGroup.alpha = 0f;
+        canvasGroup.DOFade(1f, fadeDuration);
+        
+        // 延迟隐藏
+        StartCoroutine(HideAfterDelay(duration));
+    }
+    
+    IEnumerator HideAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        Hide();
+    }
+    
+    void Hide()
+    {
+        CanvasGroup canvasGroup = GetComponent<CanvasGroup>();
+        if (canvasGroup != null)
+        {
+            canvasGroup.DOFade(0f, fadeDuration)
+                .OnComplete(() => {
+                    gameObject.SetActive(false);
+                });
+        }
+        else
+        {
+            gameObject.SetActive(false);
+        }
+    }
+}
+
+// Toast 管理器
+public class ToastManager : MonoBehaviour
+{
+    public static ToastManager Instance { get; private set; }
+    
+    public GameObject toastPrefab;
+    public Transform toastParent;
+    
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+    
+    public void ShowToast(string message, float duration = -1f)
+    {
+        GameObject toastObj = Instantiate(toastPrefab, toastParent);
+        Toast toast = toastObj.GetComponent<Toast>();
+        if (toast != null)
+        {
+            toast.Show(message, duration);
+        }
+    }
+}
+```
+
+## 拖拽组件
+
+### 可拖拽 UI 元素
+
+```csharp
+using UnityEngine;
+using UnityEngine.EventSystems;
+
+public class DraggableUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+{
+    [Header("Settings")]
+    public bool returnToStart = false;
+    public bool constrainToParent = true;
+    
+    private RectTransform rectTransform;
+    private Canvas canvas;
+    private Vector2 startPosition;
+    private Transform originalParent;
+    
+    void Awake()
+    {
+        rectTransform = GetComponent<RectTransform>();
+        canvas = GetComponentInParent<Canvas>();
+        originalParent = transform.parent;
+    }
+    
+    public void OnBeginDrag(PointerEventData eventData)
+    {
+        startPosition = rectTransform.anchoredPosition;
+        
+        // 设置为顶层
+        transform.SetParent(canvas.transform);
+    }
+    
+    public void OnDrag(PointerEventData eventData)
+    {
+        Vector2 position;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            canvas.transform as RectTransform,
+            eventData.position,
+            canvas.worldCamera,
+            out position);
+        
+        rectTransform.position = canvas.transform.TransformPoint(position);
+        
+        // 限制在父容器内
+        if (constrainToParent && originalParent != null)
+        {
+            RectTransform parentRect = originalParent as RectTransform;
+            Vector2 localPosition = rectTransform.localPosition;
+            
+            localPosition.x = Mathf.Clamp(localPosition.x, 
+                -parentRect.rect.width / 2 + rectTransform.rect.width / 2,
+                parentRect.rect.width / 2 - rectTransform.rect.width / 2);
+            localPosition.y = Mathf.Clamp(localPosition.y,
+                -parentRect.rect.height / 2 + rectTransform.rect.height / 2,
+                parentRect.rect.height / 2 - rectTransform.rect.height / 2);
+            
+            rectTransform.localPosition = localPosition;
+        }
+    }
+    
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        if (returnToStart)
+        {
+            rectTransform.anchoredPosition = startPosition;
+        }
+        
+        transform.SetParent(originalParent);
+    }
+}
+```
+
+### 拖拽槽位
+
+```csharp
+using UnityEngine;
+using UnityEngine.EventSystems;
+
+public class DropSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPointerExitHandler
+{
+    [Header("Settings")]
+    public bool acceptAnyItem = true;
+    public string[] acceptedItemTypes;
+    
+    private DraggableUI currentItem;
+    
+    public void OnDrop(PointerEventData eventData)
+    {
+        DraggableUI draggedItem = eventData.pointerDrag?.GetComponent<DraggableUI>();
+        
+        if (draggedItem != null)
+        {
+            if (acceptAnyItem || IsItemAccepted(draggedItem))
+            {
+                draggedItem.transform.SetParent(transform);
+                draggedItem.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+                currentItem = draggedItem;
+                OnItemDropped(draggedItem);
+            }
+        }
+    }
+    
+    bool IsItemAccepted(DraggableUI item)
+    {
+        if (acceptedItemTypes == null || acceptedItemTypes.Length == 0)
+        {
+            return true;
+        }
+        
+        // 检查物品类型（需要根据实际需求实现）
+        // string itemType = item.GetItemType();
+        // return System.Array.Exists(acceptedItemTypes, type => type == itemType);
+        
+        return true;
+    }
+    
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        // 高亮显示
+    }
+    
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        // 取消高亮
+    }
+    
+    protected virtual void OnItemDropped(DraggableUI item)
+    {
+        // 子类可以重写此方法
+    }
+}
+```
+
+## 标签页组件
+
+### Tab 控制器
+
+```csharp
+using UnityEngine;
+using UnityEngine.UI;
+using System.Collections.Generic;
+
+public class TabController : MonoBehaviour
+{
+    [System.Serializable]
+    public class Tab
+    {
+        public Button tabButton;
+        public GameObject tabContent;
+    }
+    
+    public List<Tab> tabs = new List<Tab>();
+    public int defaultTabIndex = 0;
+    
+    private int currentTabIndex = -1;
+    
+    void Start()
+    {
+        for (int i = 0; i < tabs.Count; i++)
+        {
+            int index = i;
+            tabs[i].tabButton.onClick.AddListener(() => SwitchTab(index));
+        }
+        
+        if (defaultTabIndex >= 0 && defaultTabIndex < tabs.Count)
+        {
+            SwitchTab(defaultTabIndex);
+        }
+    }
+    
+    public void SwitchTab(int index)
+    {
+        if (index == currentTabIndex) return;
+        
+        if (currentTabIndex >= 0 && currentTabIndex < tabs.Count)
+        {
+            tabs[currentTabIndex].tabContent.SetActive(false);
+            tabs[currentTabIndex].tabButton.interactable = true;
+        }
+        
+        if (index >= 0 && index < tabs.Count)
+        {
+            tabs[index].tabContent.SetActive(true);
+            tabs[index].tabButton.interactable = false;
+            currentTabIndex = index;
+        }
+    }
+}
+```
+
+## 总结
+
+本文介绍了几种常用的 Unity UI 组件实现方法，包括进度条、滚动列表、弹窗、提示框、拖拽组件和标签页。这些组件可以根据项目需求进行扩展和定制，为游戏开发提供良好的 UI 基础。
+
+## 参考资料
+
+- [Unity UGUI 官方文档](https://docs.unity3d.com/Manual/UISystem.html)
+- [DOTween 文档](http://dotween.demigiant.com/documentation.php)

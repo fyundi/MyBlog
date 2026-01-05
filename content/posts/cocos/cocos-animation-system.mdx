@@ -1,0 +1,113 @@
+---
+title: "Cocos Creator 动画系统详解"
+date: "2024-01-26"
+category: "cocos"
+tags: ["Cocos Creator", "动画", "游戏开发", "TypeScript"]
+description: "深入理解 Cocos Creator 的动画系统，包括帧动画、骨骼动画和补间动画"
+featured: false
+---
+
+# Cocos Creator 动画系统详解
+
+## 概述
+
+Cocos Creator 提供了多种动画实现方式，本文将详细介绍各种动画系统的使用方法。
+
+## 1. 帧动画（Frame Animation）
+
+帧动画是最基础的动画形式，通过快速切换图片来实现动画效果。
+
+### 实现步骤
+
+1. 准备动画帧图片
+2. 创建 Animation 组件
+3. 添加动画剪辑（Animation Clip）
+4. 播放动画
+
+### 代码示例
+
+```typescript
+import { _decorator, Component, Animation } from 'cc';
+
+@_decorator.ccclass('FrameAnimation')
+export class FrameAnimation extends Component {
+    private animation: Animation = null;
+
+    onLoad() {
+        this.animation = this.getComponent(Animation);
+    }
+
+    playAnimation() {
+        this.animation.play('walk');
+    }
+
+    stopAnimation() {
+        this.animation.stop();
+    }
+}
+```
+
+## 2. 补间动画（Tween）
+
+补间动画用于实现平滑的属性变化。
+
+### 基本用法
+
+```typescript
+import { tween } from 'cc';
+
+// 移动动画
+tween(this.node)
+    .to(1, { position: new Vec3(100, 100, 0) })
+    .start();
+
+// 缩放动画
+tween(this.node)
+    .to(0.5, { scale: new Vec3(1.5, 1.5, 1) })
+    .to(0.5, { scale: new Vec3(1, 1, 1) })
+    .start();
+```
+
+## 3. 骨骼动画（Spine/DragonBones）
+
+对于复杂的角色动画，可以使用 Spine 或 DragonBones。
+
+### Spine 动画
+
+```typescript
+import { sp } from 'cc';
+
+@_decorator.ccclass('SpineAnimation')
+export class SpineAnimation extends Component {
+    private skeleton: sp.Skeleton = null;
+
+    onLoad() {
+        this.skeleton = this.getComponent(sp.Skeleton);
+    }
+
+    playAnimation(name: string) {
+        this.skeleton.setAnimation(0, name, true);
+    }
+}
+```
+
+## 4. 动画事件
+
+可以在动画播放过程中触发事件。
+
+```typescript
+this.animation.on(Animation.EventType.FINISHED, () => {
+    console.log('动画播放完成');
+}, this);
+```
+
+## 最佳实践
+
+1. **合理使用动画类型**：简单动画用补间，复杂动画用帧动画或骨骼动画
+2. **优化动画资源**：压缩图片，减少内存占用
+3. **缓存动画组件**：避免频繁查找组件
+4. **及时清理**：动画播放完成后及时清理资源
+
+## 总结
+
+Cocos Creator 的动画系统功能强大，选择合适的动画方式可以提升游戏体验和性能。

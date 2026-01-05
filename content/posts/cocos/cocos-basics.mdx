@@ -1,0 +1,63 @@
+---
+title: "Cocos Creator 入门指南"
+date: "2024-01-20"
+category: "cocos"
+tags: ["Cocos Creator", "TypeScript", "游戏开发"]
+description: "学习 Cocos Creator 的基础知识和开发流程"
+featured: false
+---
+
+# Cocos Creator 入门指南
+
+## 什么是 Cocos Creator
+
+Cocos Creator 是一款完整的游戏开发解决方案，包含从设计到发布的完整工作流。
+
+## 核心特性
+
+### 1. 组件化开发
+
+Cocos Creator 采用组件化架构，每个节点可以附加多个组件：
+
+```typescript
+import { _decorator, Component, Node } from 'cc';
+
+@_decorator.ccclass('MyComponent')
+export class MyComponent extends Component {
+    @_decorator.property(Node)
+    target: Node = null;
+
+    start() {
+        console.log('Component started');
+    }
+}
+```
+
+### 2. 场景编辑器
+
+Cocos Creator 提供了强大的可视化场景编辑器，可以直观地设计游戏场景。
+
+### 3. 资源管理
+
+资源系统支持多种格式：
+- 图片：PNG, JPG
+- 音频：MP3, OGG
+- 字体：TTF, BMFont
+
+## 开发流程
+
+1. **创建项目**: 使用 Cocos Creator 创建新项目
+2. **设计场景**: 在场景编辑器中布置游戏元素
+3. **编写脚本**: 使用 TypeScript 编写游戏逻辑
+4. **测试运行**: 在编辑器中预览和调试
+5. **发布构建**: 构建到目标平台
+
+## 最佳实践
+
+- 使用组件化设计，提高代码复用性
+- 合理使用对象池，优化性能
+- 注意内存管理，及时释放资源
+
+## 总结
+
+Cocos Creator 提供了完整的游戏开发工具链，适合快速开发 2D 游戏。

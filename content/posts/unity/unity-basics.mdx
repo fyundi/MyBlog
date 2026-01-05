@@ -1,0 +1,90 @@
+---
+title: "Unity 开发基础教程"
+date: "2024-01-15"
+category: "unity"
+tags: ["Unity", "C#", "游戏开发", "基础"]
+description: "介绍 Unity 游戏开发的基础知识和常用技巧"
+featured: true
+---
+
+# Unity 开发基础教程
+
+## 概述
+
+Unity 是一款强大的跨平台游戏引擎，广泛应用于游戏开发、虚拟现实和增强现实等领域。
+
+## 核心概念
+
+### 场景（Scene）
+
+场景是 Unity 中组织游戏内容的基本单位。每个场景可以包含多个游戏对象（GameObject）。
+
+### 游戏对象（GameObject）
+
+游戏对象是 Unity 场景中的基本实体，可以附加组件（Component）来实现各种功能。
+
+### 组件（Component）
+
+组件是附加到游戏对象上的功能模块，例如：
+
+- **Transform**: 控制位置、旋转和缩放
+- **Rigidbody**: 物理模拟
+- **Collider**: 碰撞检测
+- **Renderer**: 渲染
+
+## 常用技巧
+
+### 1. 对象池模式
+
+使用对象池可以避免频繁创建和销毁对象，提高性能：
+
+```csharp
+public class ObjectPool : MonoBehaviour
+{
+    public GameObject prefab;
+    private Queue<GameObject> pool = new Queue<GameObject>();
+
+    public GameObject Get()
+    {
+        if (pool.Count > 0)
+        {
+            return pool.Dequeue();
+        }
+        return Instantiate(prefab);
+    }
+
+    public void Return(GameObject obj)
+    {
+        obj.SetActive(false);
+        pool.Enqueue(obj);
+    }
+}
+```
+
+### 2. 单例模式
+
+单例模式确保某个类只有一个实例：
+
+```csharp
+public class GameManager : MonoBehaviour
+{
+    public static GameManager Instance { get; private set; }
+
+    private void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+}
+```
+
+## 总结
+
+Unity 开发需要掌握场景管理、组件系统和常用设计模式。通过不断实践，可以逐步提升开发技能。

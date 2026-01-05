@@ -1,0 +1,144 @@
+---
+title: "TypeScript 高级类型技巧"
+date: "2024-01-27"
+category: "notes"
+tags: ["TypeScript", "类型系统", "编程技巧"]
+description: "学习 TypeScript 的高级类型特性，提升代码质量和开发效率"
+featured: false
+---
+
+# TypeScript 高级类型技巧
+
+## 概述
+
+TypeScript 的类型系统非常强大，掌握高级类型技巧可以写出更安全、更优雅的代码。
+
+## 1. 条件类型（Conditional Types）
+
+条件类型允许根据类型关系选择不同的类型。
+
+### 基本语法
+
+```typescript
+type IsArray<T> = T extends Array<any> ? true : false;
+
+type Test1 = IsArray<number[]>; // true
+type Test2 = IsArray<string>;    // false
+```
+
+### 实用示例
+
+```typescript
+type NonNullable<T> = T extends null | undefined ? never : T;
+
+type Extract<T, U> = T extends U ? T : never;
+type Exclude<T, U> = T extends U ? never : T;
+```
+
+## 2. 映射类型（Mapped Types）
+
+映射类型可以基于旧类型创建新类型。
+
+### 基本用法
+
+```typescript
+type Readonly<T> = {
+    readonly [P in keyof T]: T[P];
+};
+
+type Partial<T> = {
+    [P in keyof T]?: T[P];
+};
+
+type Required<T> = {
+    [P in keyof T]-?: T[P];
+};
+```
+
+### 实际应用
+
+```typescript
+interface User {
+    name: string;
+    age: number;
+    email: string;
+}
+
+type ReadonlyUser = Readonly<User>;
+// { readonly name: string; readonly age: number; readonly email: string; }
+
+type PartialUser = Partial<User>;
+// { name?: string; age?: number; email?: string; }
+```
+
+## 3. 模板字面量类型（Template Literal Types）
+
+可以创建基于字符串的模式匹配类型。
+
+```typescript
+type EventName<T extends string> = `on${Capitalize<T>}`;
+
+type ClickEvent = EventName<'click'>; // 'onClick'
+type ChangeEvent = EventName<'change'>; // 'onChange'
+```
+
+## 4. 工具类型组合
+
+组合多个工具类型可以实现复杂的功能。
+
+```typescript
+type DeepReadonly<T> = {
+    readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P];
+};
+
+type DeepPartial<T> = {
+    [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+```
+
+## 5. 类型守卫（Type Guards）
+
+类型守卫可以帮助 TypeScript 缩小类型范围。
+
+```typescript
+function isString(value: unknown): value is string {
+    return typeof value === 'string';
+}
+
+function processValue(value: unknown) {
+    if (isString(value)) {
+        // 这里 TypeScript 知道 value 是 string
+        console.log(value.toUpperCase());
+    }
+}
+```
+
+## 6. 泛型约束
+
+使用泛型约束可以限制泛型参数的类型。
+
+```typescript
+interface Lengthwise {
+    length: number;
+}
+
+function logLength<T extends Lengthwise>(arg: T): T {
+    console.log(arg.length);
+    return arg;
+}
+
+logLength("hello"); // OK
+logLength([1, 2, 3]); // OK
+logLength(123); // Error: number 没有 length 属性
+```
+
+## 最佳实践
+
+1. **合理使用类型推断**：让 TypeScript 自动推断类型
+2. **避免过度使用 any**：尽量使用具体类型
+3. **利用工具类型**：使用内置工具类型提高效率
+4. **类型优先**：先定义类型，再实现功能
+
+## 总结
+
+掌握 TypeScript 的高级类型特性，可以写出更安全、更易维护的代码。建议在实际项目中逐步应用这些技巧。
