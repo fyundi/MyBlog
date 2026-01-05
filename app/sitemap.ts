@@ -1,7 +1,6 @@
 import { MetadataRoute } from 'next'
-import { getAllPosts } from '@/lib/posts'
+import { getAllPosts, getAllTags } from '@/lib/posts'
 import { getAllCategoryInfos } from '@/lib/categories'
-import { getAllTags } from '@/lib/tags'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://your-blog.vercel.app'
