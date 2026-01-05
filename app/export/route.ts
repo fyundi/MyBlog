@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     if (all === 'true') {
       const zipBuffer = await exportAllPosts()
-      return new NextResponse(zipBuffer, {
+      return new NextResponse(new Uint8Array(zipBuffer), {
         headers: {
           'Content-Type': 'application/zip',
           'Content-Disposition': 'attachment; filename="posts-export.zip"',
