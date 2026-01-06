@@ -1,0 +1,1241 @@
+---
+title: "Unity 高级开发技巧"
+date: "2024-12-22"
+category: "unity"
+tags: ["Unity", "C#", "游戏开发", "高级技巧", "架构设计", "最佳实践"]
+description: "深入探讨 Unity 开发中的高级技巧，包括架构设计、事件系统、异步编程、序列化、编辑器扩展等实战经验"
+featured: true
+---
+
+# Unity 高级开发技巧
+
+## 概述
+
+Unity 开发不仅仅是编写脚本，更涉及架构设计、性能优化、代码组织等高级技巧。本文分享 Unity 开发中的高级用法和实战经验，帮助开发者构建更优雅、高效的 Unity 项目。
+
+## 1. 事件系统架构
+
+### 1.1 观察者模式实现
+
+```csharp
+using System;
+using System.Collections.Generic;
+
+// 事件管理器
+public class EventManager : MonoBehaviour
+{
+    private static EventManager _instance;
+    public static EventManager Instance
+    {
+        get
+        {
+            if (_instance == null)
+            {
+                _instance = FindObjectOfType<EventManager>();
+                if (_instance == null)
+                {
+                    GameObject go = new GameObject("EventManager");
+                    _instance = go.AddComponent<EventManager>();
+                    DontDestroyOnLoad(go);
+                }
+            }
+            return _instance;
+        }
+    }
+
+    private Dictionary<string, List<Action<object>>> _eventListeners = new();
+
+    public void Subscribe(string eventName, Action<object> callback)
+    {
+        if (!_eventListeners.ContainsKey(eventName))
+        {
+            _eventListeners[eventName] = new List<Action<object>>();
+        }
+        _eventListeners[eventName].Add(callback);
+    }
+
+    public void Unsubscribe(string eventName, Action<object> callback)
+    {
+        if (_eventListeners.ContainsKey(eventName))
+        {
+            _eventListeners[eventName].Remove(callback);
+        }
+    }
+
+    public void Publish(string eventName, object data = null)
+    {
+        if (_eventListeners.ContainsKey(eventName))
+        {
+            foreach (var callback in _eventListeners[eventName])
+            {
+                callback?.Invoke(data);
+            }
+        }
+    }
+
+    private void OnDestroy()
+    {
+        _eventListeners.Clear();
+    }
+}
+
+// 使用示例
+public class Player : MonoBehaviour
+{
+    void Start()
+    {
+        EventManager.Instance.Subscribe("PlayerDied", OnPlayerDied);
+    }
+
+    void OnPlayerDied(object data)
+    {
+        Debug.Log("玩家死亡");
+    }
+
+    void OnDestroy()
+    {
+        EventManager.Instance.Unsubscribe("PlayerDied", OnPlayerDied);
+    }
+}
+```
+
+### 1.2 类型安全的事件系统
+
+```csharp
+using System;
+using System.Collections.Generic;
+
+// 泛型事件系统
+public class EventBus<T> where T : class
+{
+    private static EventBus<T> _instance;
+    public static EventBus<T> Instance => _instance ??= new EventBus<T>();
+
+    private List<Action<T>> _listeners = new();
+
+    public void Subscribe(Action<T> listener)
+    {
+        if (!_listeners.Contains(listener))
+        {
+            _listeners.Add(listener);
+        }
+    }
+
+    public void Unsubscribe(Action<T> listener)
+    {
+        _listeners.Remove(listener);
+    }
+
+    public void Publish(T eventData)
+    {
+        foreach (var listener in _listeners)
+        {
+            listener?.Invoke(eventData);
+        }
+    }
+}
+
+// 事件数据类
+public class PlayerDeathEvent
+{
+    public Vector3 Position { get; set; }
+    public int Score { get; set; }
+}
+
+// 使用
+EventBus<PlayerDeathEvent>.Instance.Subscribe(OnPlayerDeath);
+EventBus<PlayerDeathEvent>.Instance.Publish(new PlayerDeathEvent 
+{ 
+    Position = transform.position, 
+    Score = 1000 
+});
+```
+
+## 2. 依赖注入和 Service Locator
+
+### 2.1 Service Locator 模式
+
+```csharp
+using System;
+using System.Collections.Generic;
+
+public class ServiceLocator
+{
+    private static ServiceLocator _instance;
+    public static ServiceLocator Instance => _instance ??= new ServiceLocator();
+
+    private Dictionary<Type, object> _services = new();
+
+    public void Register<T>(T service) where T : class
+    {
+        _services[typeof(T)] = service;
+    }
+
+    public T Get<T>() where T : class
+    {
+        if (_services.TryGetValue(typeof(T), out var service))
+        {
+            return service as T;
+        }
+        return null;
+    }
+
+    public bool TryGet<T>(out T service) where T : class
+    {
+        if (_services.TryGetValue(typeof(T), out var obj))
+        {
+            service = obj as T;
+            return true;
+        }
+        service = null;
+        return false;
+    }
+}
+
+// 服务接口
+public interface IAudioService
+{
+    void PlaySound(string soundName);
+}
+
+// 服务实现
+public class AudioService : MonoBehaviour, IAudioService
+{
+    void Start()
+    {
+        ServiceLocator.Instance.Register<IAudioService>(this);
+    }
+
+    public void PlaySound(string soundName)
+    {
+        Debug.Log($"播放音效: {soundName}");
+    }
+}
+
+// 使用
+public class Player : MonoBehaviour
+{
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            if (ServiceLocator.Instance.TryGet<IAudioService>(out var audioService))
+            {
+                audioService.PlaySound("Jump");
+            }
+        }
+    }
+}
+```
+
+### 2.2 依赖注入容器
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+
+public class DIContainer
+{
+    private Dictionary<Type, object> _singletons = new();
+    private Dictionary<Type, Func<object>> _factories = new();
+
+    public void RegisterSingleton<T>(T instance) where T : class
+    {
+        _singletons[typeof(T)] = instance;
+    }
+
+    public void RegisterTransient<T>(Func<T> factory) where T : class
+    {
+        _factories[typeof(T)] = () => factory();
+    }
+
+    public T Resolve<T>() where T : class
+    {
+        var type = typeof(T);
+        
+        // 检查单例
+        if (_singletons.TryGetValue(type, out var singleton))
+        {
+            return singleton as T;
+        }
+        
+        // 检查工厂
+        if (_factories.TryGetValue(type, out var factory))
+        {
+            return factory() as T;
+        }
+        
+        // 尝试自动构造
+        return AutoConstruct<T>();
+    }
+
+    private T AutoConstruct<T>() where T : class
+    {
+        var type = typeof(T);
+        var constructors = type.GetConstructors();
+        
+        if (constructors.Length == 0)
+        {
+            throw new Exception($"无法构造 {type.Name}，没有公共构造函数");
+        }
+        
+        var constructor = constructors[0];
+        var parameters = constructor.GetParameters();
+        var args = new object[parameters.Length];
+        
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            args[i] = Resolve(parameters[i].ParameterType);
+        }
+        
+        return constructor.Invoke(args) as T;
+    }
+
+    private object Resolve(Type type)
+    {
+        if (_singletons.TryGetValue(type, out var singleton))
+        {
+            return singleton;
+        }
+        
+        if (_factories.TryGetValue(type, out var factory))
+        {
+            return factory();
+        }
+        
+        return Activator.CreateInstance(type);
+    }
+}
+```
+
+## 3. 异步编程和协程高级用法
+
+### 3.1 异步任务封装
+
+```csharp
+using System;
+using System.Collections;
+using System.Threading.Tasks;
+using UnityEngine;
+
+public static class AsyncExtensions
+{
+    // 将协程转换为 Task
+    public static Task AsTask(this IEnumerator coroutine, MonoBehaviour owner)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        owner.StartCoroutine(AsTaskCoroutine(coroutine, tcs));
+        return tcs.Task;
+    }
+
+    private static IEnumerator AsTaskCoroutine(IEnumerator coroutine, TaskCompletionSource<bool> tcs)
+    {
+        yield return coroutine;
+        tcs.SetResult(true);
+    }
+
+    // 将 Task 转换为协程
+    public static Coroutine AsCoroutine(this Task task, MonoBehaviour owner)
+    {
+        return owner.StartCoroutine(AsCoroutineInternal(task));
+    }
+
+    private static IEnumerator AsCoroutineInternal(Task task)
+    {
+        while (!task.IsCompleted)
+        {
+            yield return null;
+        }
+        
+        if (task.IsFaulted)
+        {
+            Debug.LogError($"任务失败: {task.Exception}");
+        }
+    }
+}
+
+// 使用示例
+public class AsyncExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 使用 async/await
+        await LoadDataAsync();
+        
+        // 将协程转换为 Task
+        await LoadSceneCoroutine().AsTask(this);
+    }
+
+    async Task LoadDataAsync()
+    {
+        await Task.Delay(1000);
+        Debug.Log("数据加载完成");
+    }
+
+    IEnumerator LoadSceneCoroutine()
+    {
+        yield return new WaitForSeconds(1f);
+        Debug.Log("场景加载完成");
+    }
+}
+```
+
+### 3.2 协程管理器
+
+```csharp
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class CoroutineManager : MonoBehaviour
+{
+    private static CoroutineManager _instance;
+    public static CoroutineManager Instance
+    {
+        get
+        {
+            if (_instance == null)
+            {
+                GameObject go = new GameObject("CoroutineManager");
+                _instance = go.AddComponent<CoroutineManager>();
+                DontDestroyOnLoad(go);
+            }
+            return _instance;
+        }
+    }
+
+    private Dictionary<string, Coroutine> _runningCoroutines = new();
+
+    public Coroutine StartManagedCoroutine(string name, IEnumerator coroutine)
+    {
+        StopCoroutine(name);
+        var cor = StartCoroutine(coroutine);
+        _runningCoroutines[name] = cor;
+        return cor;
+    }
+
+    public void StopCoroutine(string name)
+    {
+        if (_runningCoroutines.TryGetValue(name, out var coroutine))
+        {
+            StopCoroutine(coroutine);
+            _runningCoroutines.Remove(name);
+        }
+    }
+
+    public void StopAllManagedCoroutines()
+    {
+        foreach (var coroutine in _runningCoroutines.Values)
+        {
+            StopCoroutine(coroutine);
+        }
+        _runningCoroutines.Clear();
+    }
+}
+
+// 使用
+CoroutineManager.Instance.StartManagedCoroutine("LoadData", LoadDataCoroutine());
+CoroutineManager.Instance.StopCoroutine("LoadData");
+```
+
+### 3.3 延迟执行工具
+
+```csharp
+using System;
+using System.Collections;
+using UnityEngine;
+
+public static class DelayedExecution
+{
+    public static Coroutine Delay(this MonoBehaviour owner, float seconds, Action action)
+    {
+        return owner.StartCoroutine(DelayCoroutine(seconds, action));
+    }
+
+    public static Coroutine DelayFrame(this MonoBehaviour owner, Action action)
+    {
+        return owner.StartCoroutine(DelayFrameCoroutine(action));
+    }
+
+    public static Coroutine DelayUntil(this MonoBehaviour owner, Func<bool> condition, Action action)
+    {
+        return owner.StartCoroutine(DelayUntilCoroutine(condition, action));
+    }
+
+    private static IEnumerator DelayCoroutine(float seconds, Action action)
+    {
+        yield return new WaitForSeconds(seconds);
+        action?.Invoke();
+    }
+
+    private static IEnumerator DelayFrameCoroutine(Action action)
+    {
+        yield return null;
+        action?.Invoke();
+    }
+
+    private static IEnumerator DelayUntilCoroutine(Func<bool> condition, Action action)
+    {
+        yield return new WaitUntil(condition);
+        action?.Invoke();
+    }
+}
+
+// 使用
+this.Delay(2f, () => Debug.Log("2秒后执行"));
+this.DelayFrame(() => Debug.Log("下一帧执行"));
+this.DelayUntil(() => Input.GetKeyDown(KeyCode.Space), () => Debug.Log("按下空格"));
+```
+
+## 4. 高级序列化
+
+### 4.1 自定义序列化
+
+```csharp
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+[Serializable]
+public class SerializableDictionary<TKey, TValue> : Dictionary<TKey, TValue>, ISerializationCallbackReceiver
+{
+    [SerializeField]
+    private List<TKey> keys = new List<TKey>();
+
+    [SerializeField]
+    private List<TValue> values = new List<TValue>();
+
+    public void OnBeforeSerialize()
+    {
+        keys.Clear();
+        values.Clear();
+        foreach (var pair in this)
+        {
+            keys.Add(pair.Key);
+            values.Add(pair.Value);
+        }
+    }
+
+    public void OnAfterDeserialize()
+    {
+        this.Clear();
+        if (keys.Count != values.Count)
+        {
+            Debug.LogError("键值对数量不匹配");
+            return;
+        }
+        for (int i = 0; i < keys.Count; i++)
+        {
+            this[keys[i]] = values[i];
+        }
+    }
+}
+
+// 使用
+[Serializable]
+public class MyComponent : MonoBehaviour
+{
+    public SerializableDictionary<string, int> stats = new SerializableDictionary<string, int>();
+}
+```
+
+### 4.2 ScriptableObject 高级用法
+
+```csharp
+using UnityEngine;
+
+[CreateAssetMenu(fileName = "GameConfig", menuName = "Game/Config")]
+public class GameConfig : ScriptableObject
+{
+    public float playerSpeed = 5f;
+    public int maxHealth = 100;
+    public Color playerColor = Color.white;
+}
+
+// 运行时修改 ScriptableObject（使用实例）
+public class ConfigManager : MonoBehaviour
+{
+    [SerializeField] private GameConfig config;
+    private GameConfig runtimeConfig;
+
+    void Awake()
+    {
+        // 创建运行时副本，避免修改原始资源
+        runtimeConfig = Instantiate(config);
+    }
+
+    public GameConfig GetConfig()
+    {
+        return runtimeConfig;
+    }
+}
+```
+
+## 5. 反射和代码生成
+
+### 5.1 反射工具类
+
+```csharp
+using System;
+using System.Reflection;
+using UnityEngine;
+
+public static class ReflectionHelper
+{
+    // 获取所有字段（包括私有）
+    public static T GetFieldValue<T>(object obj, string fieldName)
+    {
+        var field = obj.GetType().GetField(fieldName, 
+            BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+        return (T)field?.GetValue(obj);
+    }
+
+    // 设置字段值
+    public static void SetFieldValue(object obj, string fieldName, object value)
+    {
+        var field = obj.GetType().GetField(fieldName,
+            BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+        field?.SetValue(obj, value);
+    }
+
+    // 调用私有方法
+    public static T InvokeMethod<T>(object obj, string methodName, params object[] parameters)
+    {
+        var method = obj.GetType().GetMethod(methodName,
+            BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+        return (T)method?.Invoke(obj, parameters);
+    }
+
+    // 获取所有组件（包括未激活的）
+    public static T[] GetComponentsInChildrenInactive<T>(GameObject go) where T : Component
+    {
+        return go.GetComponentsInChildren<T>(true);
+    }
+}
+```
+
+### 5.2 属性绑定系统
+
+```csharp
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PropertyBinder : MonoBehaviour
+{
+    private Dictionary<string, Action<object>> _bindings = new();
+
+    public void Bind<T>(string propertyName, Action<T> callback)
+    {
+        _bindings[propertyName] = (value) => callback((T)value);
+    }
+
+    public void SetValue(string propertyName, object value)
+    {
+        if (_bindings.TryGetValue(propertyName, out var callback))
+        {
+            callback?.Invoke(value);
+        }
+    }
+}
+
+// 使用
+public class UIExample : MonoBehaviour
+{
+    private PropertyBinder binder;
+
+    void Start()
+    {
+        binder = GetComponent<PropertyBinder>();
+        binder.Bind<int>("Score", UpdateScore);
+        binder.Bind<string>("PlayerName", UpdateName);
+    }
+
+    void UpdateScore(int score)
+    {
+        Debug.Log($"分数: {score}");
+    }
+
+    void UpdateName(string name)
+    {
+        Debug.Log($"玩家: {name}");
+    }
+}
+```
+
+## 6. 对象池高级实现
+
+### 6.1 泛型对象池
+
+```csharp
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Pool<T> where T : Component
+{
+    private Queue<T> _pool = new Queue<T>();
+    private T _prefab;
+    private Transform _parent;
+
+    public Pool(T prefab, int initialSize = 10, Transform parent = null)
+    {
+        _prefab = prefab;
+        _parent = parent;
+        
+        for (int i = 0; i < initialSize; i++)
+        {
+            var obj = Object.Instantiate(_prefab, _parent);
+            obj.gameObject.SetActive(false);
+            _pool.Enqueue(obj);
+        }
+    }
+
+    public T Get()
+    {
+        T obj;
+        if (_pool.Count > 0)
+        {
+            obj = _pool.Dequeue();
+        }
+        else
+        {
+            obj = Object.Instantiate(_prefab, _parent);
+        }
+        obj.gameObject.SetActive(true);
+        return obj;
+    }
+
+    public void Return(T obj)
+    {
+        obj.gameObject.SetActive(false);
+        _pool.Enqueue(obj);
+    }
+
+    public void Clear()
+    {
+        while (_pool.Count > 0)
+        {
+            var obj = _pool.Dequeue();
+            if (obj != null)
+            {
+                Object.Destroy(obj.gameObject);
+            }
+        }
+    }
+}
+
+// 使用
+public class BulletPool : MonoBehaviour
+{
+    [SerializeField] private Bullet bulletPrefab;
+    private Pool<Bullet> bulletPool;
+
+    void Start()
+    {
+        bulletPool = new Pool<Bullet>(bulletPrefab, 20, transform);
+    }
+
+    public Bullet GetBullet()
+    {
+        return bulletPool.Get();
+    }
+
+    public void ReturnBullet(Bullet bullet)
+    {
+        bulletPool.Return(bullet);
+    }
+}
+```
+
+### 6.2 对象池管理器
+
+```csharp
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PoolManager : MonoBehaviour
+{
+    private static PoolManager _instance;
+    public static PoolManager Instance => _instance ??= FindObjectOfType<PoolManager>();
+
+    private Dictionary<string, IPool> _pools = new();
+
+    public void RegisterPool<T>(string poolName, T prefab, int size = 10) where T : Component
+    {
+        if (!_pools.ContainsKey(poolName))
+        {
+            var pool = new Pool<T>(prefab, size, transform);
+            _pools[poolName] = pool as IPool;
+        }
+    }
+
+    public T Get<T>(string poolName) where T : Component
+    {
+        if (_pools.TryGetValue(poolName, out var pool))
+        {
+            return (pool as Pool<T>)?.Get();
+        }
+        return null;
+    }
+
+    public void Return<T>(string poolName, T obj) where T : Component
+    {
+        if (_pools.TryGetValue(poolName, out var pool))
+        {
+            (pool as Pool<T>)?.Return(obj);
+        }
+    }
+}
+
+public interface IPool { }
+```
+
+## 7. 状态机系统
+
+### 7.1 通用状态机
+
+```csharp
+using System;
+using System.Collections.Generic;
+
+public abstract class State
+{
+    public virtual void Enter() { }
+    public virtual void Update() { }
+    public virtual void Exit() { }
+}
+
+public class StateMachine
+{
+    private Dictionary<Type, State> _states = new();
+    private State _currentState;
+
+    public void AddState<T>(T state) where T : State
+    {
+        _states[typeof(T)] = state;
+    }
+
+    public void ChangeState<T>() where T : State
+    {
+        _currentState?.Exit();
+        if (_states.TryGetValue(typeof(T), out var state))
+        {
+            _currentState = state;
+            _currentState.Enter();
+        }
+    }
+
+    public void Update()
+    {
+        _currentState?.Update();
+    }
+}
+
+// 使用示例
+public class PlayerStateMachine : MonoBehaviour
+{
+    private StateMachine stateMachine;
+
+    void Start()
+    {
+        stateMachine = new StateMachine();
+        stateMachine.AddState(new IdleState(this));
+        stateMachine.AddState(new RunState(this));
+        stateMachine.AddState(new JumpState(this));
+        stateMachine.ChangeState<IdleState>();
+    }
+
+    void Update()
+    {
+        stateMachine.Update();
+    }
+}
+
+public class IdleState : State
+{
+    private PlayerStateMachine player;
+    
+    public IdleState(PlayerStateMachine player)
+    {
+        this.player = player;
+    }
+    
+    public override void Enter()
+    {
+        Debug.Log("进入待机状态");
+    }
+}
+```
+
+## 8. 编辑器扩展
+
+### 8.1 自定义 Inspector
+
+```csharp
+using UnityEngine;
+using UnityEditor;
+
+[CustomEditor(typeof(MyComponent))]
+public class MyComponentEditor : Editor
+{
+    public override void OnInspectorGUI()
+    {
+        DrawDefaultInspector();
+        
+        MyComponent component = (MyComponent)target;
+        
+        if (GUILayout.Button("执行操作"))
+        {
+            component.DoSomething();
+        }
+        
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("自定义信息", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("这是自定义的帮助信息", MessageType.Info);
+    }
+}
+```
+
+### 8.2 属性绘制器
+
+```csharp
+using UnityEngine;
+using UnityEditor;
+
+[CustomPropertyDrawer(typeof(RangeWithLabelAttribute))]
+public class RangeWithLabelDrawer : PropertyDrawer
+{
+    public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+    {
+        var attr = attribute as RangeWithLabelAttribute;
+        
+        EditorGUI.Slider(position, property, attr.min, attr.max, 
+            new GUIContent(attr.label));
+    }
+}
+
+public class RangeWithLabelAttribute : PropertyAttribute
+{
+    public float min;
+    public float max;
+    public string label;
+    
+    public RangeWithLabelAttribute(float min, float max, string label)
+    {
+        this.min = min;
+        this.max = max;
+        this.label = label;
+    }
+}
+
+// 使用
+public class Example : MonoBehaviour
+{
+    [RangeWithLabel(0f, 100f, "生命值")]
+    public float health;
+}
+```
+
+## 9. 性能优化高级技巧
+
+### 9.1 缓存组件引用
+
+```csharp
+using UnityEngine;
+
+public class ComponentCache : MonoBehaviour
+{
+    private Rigidbody _rigidbody;
+    private Animator _animator;
+    private Renderer _renderer;
+    
+    public Rigidbody Rigidbody => _rigidbody ??= GetComponent<Rigidbody>();
+    public Animator Animator => _animator ??= GetComponent<Animator>();
+    public Renderer Renderer => _renderer ??= GetComponent<Renderer>();
+    
+    // 使用
+    void Update()
+    {
+        Rigidbody.velocity = Vector3.zero; // 自动缓存
+    }
+}
+```
+
+### 9.2 避免 GC 分配
+
+```csharp
+using UnityEngine;
+using System.Collections.Generic;
+
+public class GCOptimization : MonoBehaviour
+{
+    // ❌ 每次调用都分配新数组
+    void BadExample()
+    {
+        var colliders = GetComponents<Collider>();
+    }
+    
+    // ✅ 重用数组
+    private Collider[] _colliderCache = new Collider[10];
+    void GoodExample()
+    {
+        int count = GetComponentsNonAlloc(_colliderCache);
+        for (int i = 0; i < count; i++)
+        {
+            // 使用 _colliderCache[i]
+        }
+    }
+    
+    // ✅ 使用对象池
+    private Queue<Vector3> _vectorPool = new Queue<Vector3>();
+    Vector3 GetVector(float x, float y, float z)
+    {
+        if (_vectorPool.Count > 0)
+        {
+            var v = _vectorPool.Dequeue();
+            v.Set(x, y, z);
+            return v;
+        }
+        return new Vector3(x, y, z);
+    }
+    
+    void ReturnVector(Vector3 v)
+    {
+        _vectorPool.Enqueue(v);
+    }
+}
+```
+
+## 10. 数据驱动设计
+
+### 10.1 配置表系统
+
+```csharp
+using System.Collections.Generic;
+using UnityEngine;
+
+[CreateAssetMenu(fileName = "ItemData", menuName = "Game/Item Data")]
+public class ItemData : ScriptableObject
+{
+    public int id;
+    public string name;
+    public Sprite icon;
+    public int price;
+}
+
+public class ItemDatabase : ScriptableObject
+{
+    public List<ItemData> items = new List<ItemData>();
+    
+    public ItemData GetItem(int id)
+    {
+        return items.Find(item => item.id == id);
+    }
+}
+
+// 使用
+public class Shop : MonoBehaviour
+{
+    [SerializeField] private ItemDatabase itemDatabase;
+    
+    public void BuyItem(int itemId)
+    {
+        var item = itemDatabase.GetItem(itemId);
+        if (item != null)
+        {
+            Debug.Log($"购买物品: {item.name}");
+        }
+    }
+}
+```
+
+## 11. 单例模式高级实现
+
+### 11.1 泛型单例基类
+
+```csharp
+using UnityEngine;
+
+public class Singleton<T> : MonoBehaviour where T : MonoBehaviour
+{
+    private static T _instance;
+    private static bool _applicationQuitting = false;
+
+    public static T Instance
+    {
+        get
+        {
+            if (_applicationQuitting)
+            {
+                return null;
+            }
+
+            if (_instance == null)
+            {
+                _instance = FindObjectOfType<T>();
+                
+                if (_instance == null)
+                {
+                    GameObject go = new GameObject(typeof(T).Name);
+                    _instance = go.AddComponent<T>();
+                    DontDestroyOnLoad(go);
+                }
+            }
+            
+            return _instance;
+        }
+    }
+
+    protected virtual void Awake()
+    {
+        if (_instance == null)
+        {
+            _instance = this as T;
+            DontDestroyOnLoad(gameObject);
+        }
+        else if (_instance != this)
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    protected virtual void OnApplicationQuit()
+    {
+        _applicationQuitting = true;
+    }
+}
+
+// 使用
+public class GameManager : Singleton<GameManager>
+{
+    protected override void Awake()
+    {
+        base.Awake();
+        // 初始化代码
+    }
+}
+```
+
+## 12. 实用工具类
+
+### 12.1 数学工具
+
+```csharp
+using UnityEngine;
+
+public static class MathUtils
+{
+    // 平滑插值
+    public static float SmoothStep(float t)
+    {
+        return t * t * (3f - 2f * t);
+    }
+    
+    // 角度归一化
+    public static float NormalizeAngle(float angle)
+    {
+        while (angle > 180f) angle -= 360f;
+        while (angle < -180f) angle += 360f;
+        return angle;
+    }
+    
+    // 2D 距离
+    public static float Distance2D(Vector3 a, Vector3 b)
+    {
+        return Vector2.Distance(new Vector2(a.x, a.z), new Vector2(b.x, b.z));
+    }
+    
+    // 检查点是否在范围内
+    public static bool IsInRange(Vector3 point, Vector3 center, float radius)
+    {
+        return Vector3.Distance(point, center) <= radius;
+    }
+}
+```
+
+### 12.2 Transform 扩展
+
+```csharp
+using UnityEngine;
+
+public static class TransformExtensions
+{
+    public static void SetPositionX(this Transform transform, float x)
+    {
+        var pos = transform.position;
+        pos.x = x;
+        transform.position = pos;
+    }
+    
+    public static void SetPositionY(this Transform transform, float y)
+    {
+        var pos = transform.position;
+        pos.y = y;
+        transform.position = pos;
+    }
+    
+    public static void SetPositionZ(this Transform transform, float z)
+    {
+        var pos = transform.position;
+        pos.z = z;
+        transform.position = pos;
+    }
+    
+    public static void LookAt2D(this Transform transform, Vector3 target)
+    {
+        Vector3 direction = target - transform.position;
+        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+        transform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
+    }
+}
+
+// 使用
+transform.SetPositionX(10f);
+transform.LookAt2D(target.position);
+```
+
+## 最佳实践总结
+
+1. **架构设计**
+   - 使用事件系统解耦组件
+   - 实现 Service Locator 管理服务
+   - 使用状态机管理复杂状态
+
+2. **性能优化**
+   - 缓存组件引用
+   - 使用对象池减少 GC
+   - 避免在 Update 中分配内存
+
+3. **代码组织**
+   - 使用 ScriptableObject 进行数据驱动
+   - 实现泛型工具类提高复用性
+   - 合理使用扩展方法
+
+4. **异步处理**
+   - 使用协程处理延迟操作
+   - 结合 async/await 处理异步任务
+   - 实现协程管理器统一管理
+
+5. **编辑器扩展**
+   - 自定义 Inspector 提升开发效率
+   - 使用属性绘制器美化界面
+   - 创建编辑器工具简化工作流
+
+## 总结
+
+Unity 高级开发技巧涉及架构设计、性能优化、代码组织等多个方面。掌握这些技巧可以：
+
+- **提高代码质量**：更清晰的架构和更好的可维护性
+- **优化性能**：减少 GC 分配，提升运行效率
+- **提升开发效率**：工具类和编辑器扩展加速开发
+- **增强可扩展性**：模块化设计便于功能扩展
+
+在实际项目中，应根据具体需求选择合适的模式和技巧，平衡代码复杂度和项目需求。
+
+## 参考资料
+
+- [Unity 官方文档](https://docs.unity3d.com/)
+- [Unity 最佳实践指南](https://unity.com/how-to/unity-optimization-guide)
+- [C# 异步编程](https://docs.microsoft.com/zh-cn/dotnet/csharp/async)
+- [设计模式在 Unity 中的应用](https://github.com/QianMo/Unity-Design-Pattern)

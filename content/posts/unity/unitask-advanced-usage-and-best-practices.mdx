@@ -1,0 +1,1087 @@
+---
+title: "UniTask 高级用法与最佳实践"
+date: "2024-12-22"
+category: "unity"
+tags: ["Unity", "UniTask", "异步编程", "性能优化", "最佳实践", "高级技巧"]
+description: "深入学习 UniTask 的高级特性，包括并行处理、超时控制、资源管理、错误处理等实战技巧和最佳实践"
+featured: true
+---
+
+# UniTask 高级用法与最佳实践
+
+## 概述
+
+在掌握了 UniTask 的基础用法后，本文将深入探讨 UniTask 的高级特性，包括并行处理、超时控制、资源管理、复杂场景处理等，并分享实际项目中的最佳实践和常见陷阱。
+
+## 1. 并行处理
+
+### 1.1 UniTask.WhenAll - 等待所有任务完成
+
+```csharp
+using Cysharp.Threading.Tasks;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class WhenAllExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 等待多个任务全部完成
+        var (result1, result2, result3) = await UniTask.WhenAll(
+            LoadData1(),
+            LoadData2(),
+            LoadData3()
+        );
+        
+        Debug.Log($"结果1: {result1}, 结果2: {result2}, 结果3: {result3}");
+    }
+
+    async UniTask<string> LoadData1()
+    {
+        await UniTask.Delay(1000);
+        return "数据1";
+    }
+
+    async UniTask<string> LoadData2()
+    {
+        await UniTask.Delay(1500);
+        return "数据2";
+    }
+
+    async UniTask<string> LoadData3()
+    {
+        await UniTask.Delay(2000);
+        return "数据3";
+    }
+}
+```
+
+### 1.2 UniTask.WhenAny - 等待任意任务完成
+
+```csharp
+public class WhenAnyExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 等待任意一个任务完成
+        var (winIndex, result1, result2, result3) = await UniTask.WhenAny(
+            LoadData1(),
+            LoadData2(),
+            LoadData3()
+        );
+        
+        Debug.Log($"最快完成的是任务 {winIndex}");
+        
+        // 根据索引获取结果
+        switch (winIndex)
+        {
+            case 0:
+                Debug.Log($"结果1: {result1}");
+                break;
+            case 1:
+                Debug.Log($"结果2: {result2}");
+                break;
+            case 2:
+                Debug.Log($"结果3: {result3}");
+                break;
+        }
+    }
+
+    async UniTask<string> LoadData1() { await UniTask.Delay(3000); return "数据1"; }
+    async UniTask<string> LoadData2() { await UniTask.Delay(1000); return "数据2"; }
+    async UniTask<string> LoadData3() { await UniTask.Delay(2000); return "数据3"; }
+}
+```
+
+### 1.3 并行处理集合
+
+```csharp
+public class ParallelCollectionExample : MonoBehaviour
+{
+    async void Start()
+    {
+        var urls = new[] { "url1", "url2", "url3", "url4", "url5" };
+        
+        // 并行下载所有 URL
+        var results = await UniTask.WhenAll(
+            urls.Select(url => DownloadAsync(url))
+        );
+        
+        Debug.Log($"下载完成，共 {results.Length} 个文件");
+    }
+
+    async UniTask<string> DownloadAsync(string url)
+    {
+        await UniTask.Delay(Random.Range(500, 2000)); // 模拟下载
+        return $"下载内容: {url}";
+    }
+}
+```
+
+### 1.4 限制并发数量
+
+```csharp
+using System.Collections.Generic;
+using System.Linq;
+
+public class ConcurrencyLimitExample : MonoBehaviour
+{
+    async void Start()
+    {
+        var urls = Enumerable.Range(1, 100).Select(i => $"url{i}");
+        
+        // 限制同时最多 5 个并发
+        await ProcessWithConcurrencyLimit(urls, 5);
+    }
+
+    async UniTask ProcessWithConcurrencyLimit(
+        IEnumerable<string> items, 
+        int maxConcurrency)
+    {
+        var semaphore = new System.Threading.SemaphoreSlim(maxConcurrency);
+        var tasks = items.Select(async item =>
+        {
+            await semaphore.WaitAsync();
+            try
+            {
+                await ProcessItemAsync(item);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+        
+        await UniTask.WhenAll(tasks);
+    }
+
+    async UniTask ProcessItemAsync(string item)
+    {
+        await UniTask.Delay(1000);
+        Debug.Log($"处理完成: {item}");
+    }
+}
+```
+
+## 2. 超时控制
+
+### 2.1 Timeout 超时处理
+
+```csharp
+public class TimeoutExample : MonoBehaviour
+{
+    async void Start()
+    {
+        try
+        {
+            // 设置 3 秒超时
+            var result = await LoadDataAsync()
+                .Timeout(TimeSpan.FromSeconds(3));
+            
+            Debug.Log($"加载成功: {result}");
+        }
+        catch (TimeoutException)
+        {
+            Debug.LogError("加载超时");
+        }
+    }
+
+    async UniTask<string> LoadDataAsync()
+    {
+        // 模拟可能很慢的操作
+        await UniTask.Delay(Random.Range(1000, 5000));
+        return "数据";
+    }
+}
+```
+
+### 2.2 TimeoutWithoutException - 不抛异常的超时
+
+```csharp
+public class TimeoutWithoutExceptionExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 超时不抛异常，返回默认值
+        var result = await LoadDataAsync()
+            .TimeoutWithoutException(TimeSpan.FromSeconds(2), "默认值");
+        
+        Debug.Log($"结果: {result}");
+    }
+
+    async UniTask<string> LoadDataAsync()
+    {
+        await UniTask.Delay(5000); // 超过超时时间
+        return "数据";
+    }
+}
+```
+
+### 2.3 超时与取消结合
+
+```csharp
+public class TimeoutWithCancellation : MonoBehaviour
+{
+    async void Start()
+    {
+        var cancellationToken = this.GetCancellationTokenOnDestroy();
+        
+        try
+        {
+            var result = await LoadDataAsync(cancellationToken)
+                .Timeout(TimeSpan.FromSeconds(3));
+            
+            Debug.Log($"结果: {result}");
+        }
+        catch (TimeoutException)
+        {
+            Debug.LogError("操作超时");
+        }
+        catch (OperationCanceledException)
+        {
+            Debug.Log("操作已取消");
+        }
+    }
+
+    async UniTask<string> LoadDataAsync(CancellationToken cancellationToken)
+    {
+        await UniTask.Delay(5000, cancellationToken: cancellationToken);
+        return "数据";
+    }
+}
+```
+
+## 3. 重试机制
+
+### 3.1 Retry 重试
+
+```csharp
+public class RetryExample : MonoBehaviour
+{
+    async void Start()
+    {
+        try
+        {
+            // 最多重试 3 次
+            var result = await LoadDataAsync()
+                .Retry(3);
+            
+            Debug.Log($"成功: {result}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"重试 3 次后仍然失败: {ex.Message}");
+        }
+    }
+
+    async UniTask<string> LoadDataAsync()
+    {
+        // 模拟可能失败的操作
+        if (Random.Range(0, 2) == 0)
+        {
+            throw new Exception("加载失败");
+        }
+        await UniTask.Delay(1000);
+        return "数据";
+    }
+}
+```
+
+### 3.2 Retry 带延迟
+
+```csharp
+public class RetryWithDelayExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 重试 3 次，每次重试前等待 1 秒
+        var result = await LoadDataAsync()
+            .Retry(3, delay: TimeSpan.FromSeconds(1));
+    }
+
+    async UniTask<string> LoadDataAsync()
+    {
+        if (Random.Range(0, 3) == 0)
+        {
+            throw new Exception("失败");
+        }
+        await UniTask.Delay(500);
+        return "数据";
+    }
+}
+```
+
+## 4. 资源加载
+
+### 4.1 异步加载资源
+
+```csharp
+using UnityEngine;
+
+public class ResourceLoadingExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 加载 Resources 资源
+        var prefab = await Resources.LoadAsync<GameObject>("MyPrefab")
+            .ToUniTask();
+        
+        Instantiate(prefab.asset as GameObject);
+        
+        // 加载场景
+        await UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("MyScene")
+            .ToUniTask();
+    }
+}
+```
+
+### 4.2 Addressables 集成
+
+```csharp
+#if UNITY_ADDRESSABLES
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
+
+public class AddressablesExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 加载 Addressable 资源
+        var handle = Addressables.LoadAssetAsync<GameObject>("MyPrefab");
+        var prefab = await handle.ToUniTask();
+        
+        Instantiate(prefab);
+        
+        // 释放资源
+        Addressables.Release(handle);
+    }
+}
+#endif
+```
+
+### 4.3 批量资源加载
+
+```csharp
+public class BatchResourceLoading : MonoBehaviour
+{
+    async void Start()
+    {
+        var resourcePaths = new[] { "Prefab1", "Prefab2", "Prefab3" };
+        
+        // 并行加载多个资源
+        var resources = await UniTask.WhenAll(
+            resourcePaths.Select(path => 
+                Resources.LoadAsync<GameObject>(path).ToUniTask()
+            )
+        );
+        
+        foreach (var resource in resources)
+        {
+            if (resource.asset != null)
+            {
+                Instantiate(resource.asset as GameObject);
+            }
+        }
+    }
+}
+```
+
+## 5. 网络请求
+
+### 5.1 UnityWebRequest 集成
+
+```csharp
+using UnityEngine.Networking;
+using System.Text;
+
+public class WebRequestExample : MonoBehaviour
+{
+    async void Start()
+    {
+        try
+        {
+            var result = await GetRequestAsync("https://api.example.com/data");
+            Debug.Log($"响应: {result}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"请求失败: {ex.Message}");
+        }
+    }
+
+    async UniTask<string> GetRequestAsync(string url)
+    {
+        using (var request = UnityWebRequest.Get(url))
+        {
+            var operation = request.SendWebRequest();
+            await operation.ToUniTask();
+            
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                throw new Exception(request.error);
+            }
+            
+            return request.downloadHandler.text;
+        }
+    }
+
+    async UniTask<string> PostRequestAsync(string url, string jsonData)
+    {
+        using (var request = new UnityWebRequest(url, "POST"))
+        {
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
+            request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            
+            var operation = request.SendWebRequest();
+            await operation.ToUniTask();
+            
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                throw new Exception(request.error);
+            }
+            
+            return request.downloadHandler.text;
+        }
+    }
+}
+```
+
+### 5.2 带超时的网络请求
+
+```csharp
+public class WebRequestWithTimeout : MonoBehaviour
+{
+    async void Start()
+    {
+        try
+        {
+            var result = await GetRequestAsync("https://api.example.com/data")
+                .Timeout(TimeSpan.FromSeconds(5));
+            
+            Debug.Log($"响应: {result}");
+        }
+        catch (TimeoutException)
+        {
+            Debug.LogError("请求超时");
+        }
+    }
+
+    async UniTask<string> GetRequestAsync(string url)
+    {
+        using (var request = UnityWebRequest.Get(url))
+        {
+            await request.SendWebRequest().ToUniTask();
+            
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                throw new Exception(request.error);
+            }
+            
+            return request.downloadHandler.text;
+        }
+    }
+}
+```
+
+## 6. UI 更新
+
+### 6.1 安全的 UI 更新
+
+```csharp
+using UnityEngine.UI;
+
+public class UIUpdateExample : MonoBehaviour
+{
+    [SerializeField] private Text statusText;
+    [SerializeField] private Slider progressSlider;
+    [SerializeField] private Button loadButton;
+
+    async void Start()
+    {
+        loadButton.onClick.AddListener(() => LoadDataAsync().Forget());
+    }
+
+    async UniTask LoadDataAsync()
+    {
+        var cancellationToken = this.GetCancellationTokenOnDestroy();
+        
+        try
+        {
+            statusText.text = "加载中...";
+            progressSlider.value = 0f;
+            
+            // 模拟加载进度
+            for (int i = 0; i <= 100; i++)
+            {
+                await UniTask.Delay(50, cancellationToken: cancellationToken);
+                progressSlider.value = i / 100f;
+                statusText.text = $"加载中... {i}%";
+            }
+            
+            statusText.text = "加载完成";
+        }
+        catch (OperationCanceledException)
+        {
+            statusText.text = "加载已取消";
+        }
+        catch (Exception ex)
+        {
+            statusText.text = $"加载失败: {ex.Message}";
+        }
+    }
+}
+```
+
+### 6.2 等待 UI 交互
+
+```csharp
+public class WaitForUIInteraction : MonoBehaviour
+{
+    [SerializeField] private Button confirmButton;
+    [SerializeField] private Button cancelButton;
+
+    async void Start()
+    {
+        var result = await WaitForButtonClick();
+        Debug.Log($"用户点击了: {result}");
+    }
+
+    async UniTask<bool> WaitForButtonClick()
+    {
+        var tcs = new UniTaskCompletionSource<bool>();
+        
+        confirmButton.onClick.AddListener(() => tcs.TrySetResult(true));
+        cancelButton.onClick.AddListener(() => tcs.TrySetResult(false));
+        
+        try
+        {
+            return await tcs.Task;
+        }
+        finally
+        {
+            confirmButton.onClick.RemoveAllListeners();
+            cancelButton.onClick.RemoveAllListeners();
+        }
+    }
+}
+```
+
+## 7. 复杂场景处理
+
+### 7.1 状态机模式
+
+```csharp
+public class StateMachineExample : MonoBehaviour
+{
+    private enum GameState { Loading, Playing, Paused, GameOver }
+    private GameState currentState = GameState.Loading;
+
+    async void Start()
+    {
+        await RunStateMachine();
+    }
+
+    async UniTask RunStateMachine()
+    {
+        var cancellationToken = this.GetCancellationTokenOnDestroy();
+        
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            switch (currentState)
+            {
+                case GameState.Loading:
+                    await LoadGameAsync();
+                    currentState = GameState.Playing;
+                    break;
+                    
+                case GameState.Playing:
+                    await PlayGameAsync();
+                    break;
+                    
+                case GameState.Paused:
+                    await WaitForResume();
+                    break;
+                    
+                case GameState.GameOver:
+                    await ShowGameOverAsync();
+                    return;
+            }
+            
+            await UniTask.Yield();
+        }
+    }
+
+    async UniTask LoadGameAsync() { /* ... */ }
+    async UniTask PlayGameAsync() { /* ... */ }
+    async UniTask WaitForResume() { /* ... */ }
+    async UniTask ShowGameOverAsync() { /* ... */ }
+}
+```
+
+### 7.2 管道模式（Pipeline）
+
+```csharp
+public class PipelineExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 数据处理管道
+        var result = await ProcessData("原始数据")
+            .ContinueWith(data => TransformData(data))
+            .ContinueWith(data => ValidateData(data))
+            .ContinueWith(data => SaveData(data));
+        
+        Debug.Log($"处理完成: {result}");
+    }
+
+    async UniTask<string> ProcessData(string input)
+    {
+        await UniTask.Delay(500);
+        return $"处理: {input}";
+    }
+
+    async UniTask<string> TransformData(string input)
+    {
+        await UniTask.Delay(500);
+        return $"转换: {input}";
+    }
+
+    async UniTask<string> ValidateData(string input)
+    {
+        await UniTask.Delay(500);
+        return $"验证: {input}";
+    }
+
+    async UniTask<string> SaveData(string input)
+    {
+        await UniTask.Delay(500);
+        return $"保存: {input}";
+    }
+}
+```
+
+## 8. 性能优化技巧
+
+### 8.1 避免不必要的 await
+
+```csharp
+public class PerformanceOptimization : MonoBehaviour
+{
+    // ❌ 不好的做法：不必要的 await
+    async UniTask BadExample()
+    {
+        await UniTask.Yield(); // 不必要的等待
+        DoSomething();
+    }
+
+    // ✅ 好的做法：直接执行
+    UniTask GoodExample()
+    {
+        DoSomething();
+        return UniTask.CompletedTask;
+    }
+
+    void DoSomething()
+    {
+        Debug.Log("执行操作");
+    }
+}
+```
+
+### 8.2 使用 UniTaskCompletionSource
+
+```csharp
+public class UniTaskCompletionSourceExample : MonoBehaviour
+{
+    private UniTaskCompletionSource<string> tcs;
+
+    async void Start()
+    {
+        tcs = new UniTaskCompletionSource<string>();
+        
+        // 在另一个方法中完成
+        StartCoroutine(CompleteLater());
+        
+        var result = await tcs.Task;
+        Debug.Log($"结果: {result}");
+    }
+
+    IEnumerator CompleteLater()
+    {
+        yield return new WaitForSeconds(2f);
+        tcs.TrySetResult("完成的数据");
+    }
+}
+```
+
+### 8.3 批量操作优化
+
+```csharp
+public class BatchOperationOptimization : MonoBehaviour
+{
+    async void Start()
+    {
+        // ❌ 不好的做法：顺序执行
+        // foreach (var item in items)
+        // {
+        //     await ProcessItem(item);
+        // }
+
+        // ✅ 好的做法：批量并行处理
+        var items = Enumerable.Range(1, 100);
+        var batches = items.Chunk(10); // 每批 10 个
+        
+        foreach (var batch in batches)
+        {
+            await UniTask.WhenAll(batch.Select(ProcessItem));
+            await UniTask.Yield(); // 每批之间让出控制权
+        }
+    }
+
+    async UniTask ProcessItem(int item)
+    {
+        await UniTask.Delay(100);
+        Debug.Log($"处理: {item}");
+    }
+}
+```
+
+## 9. 错误处理最佳实践
+
+### 9.1 统一错误处理
+
+```csharp
+public class ErrorHandlingBestPractice : MonoBehaviour
+{
+    async void Start()
+    {
+        try
+        {
+            await LoadGameDataAsync();
+        }
+        catch (TimeoutException ex)
+        {
+            HandleError("加载超时", ex);
+        }
+        catch (NetworkException ex)
+        {
+            HandleError("网络错误", ex);
+        }
+        catch (Exception ex)
+        {
+            HandleError("未知错误", ex);
+        }
+    }
+
+    void HandleError(string message, Exception ex)
+    {
+        Debug.LogError($"{message}: {ex.Message}");
+        // 显示错误 UI
+        // 记录日志
+        // 上报错误
+    }
+
+    async UniTask LoadGameDataAsync()
+    {
+        // 可能抛出各种异常的操作
+    }
+}
+```
+
+### 9.2 错误恢复策略
+
+```csharp
+public class ErrorRecoveryExample : MonoBehaviour
+{
+    async void Start()
+    {
+        var result = await LoadDataWithRetryAsync();
+        Debug.Log($"最终结果: {result}");
+    }
+
+    async UniTask<string> LoadDataWithRetryAsync()
+    {
+        int maxRetries = 3;
+        Exception lastException = null;
+        
+        for (int i = 0; i < maxRetries; i++)
+        {
+            try
+            {
+                return await LoadDataAsync()
+                    .Timeout(TimeSpan.FromSeconds(5));
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                Debug.LogWarning($"尝试 {i + 1} 失败: {ex.Message}");
+                
+                if (i < maxRetries - 1)
+                {
+                    await UniTask.Delay(1000); // 等待后重试
+                }
+            }
+        }
+        
+        // 所有重试都失败，返回默认值或抛出异常
+        throw lastException;
+    }
+
+    async UniTask<string> LoadDataAsync()
+    {
+        // 模拟可能失败的操作
+        await UniTask.Delay(1000);
+        if (Random.Range(0, 2) == 0)
+        {
+            throw new Exception("加载失败");
+        }
+        return "数据";
+    }
+}
+```
+
+## 10. 常见陷阱和注意事项
+
+### 10.1 async void 的陷阱
+
+```csharp
+public class AsyncVoidTrap : MonoBehaviour
+{
+    // ❌ 危险：async void 无法捕获异常
+    async void BadExample()
+    {
+        throw new Exception("这个异常可能无法被捕获");
+    }
+
+    // ✅ 正确：使用 async UniTask
+    async UniTask GoodExample()
+    {
+        try
+        {
+            throw new Exception("这个异常可以被捕获");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"捕获异常: {ex.Message}");
+        }
+    }
+
+    // 如果必须在事件中使用 async void
+    async void OnButtonClick()
+    {
+        // 使用 Forget() 来"忘记"任务，但仍能处理异常
+        ProcessAsync().Forget();
+    }
+
+    async UniTask ProcessAsync()
+    {
+        try
+        {
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"处理失败: {ex.Message}");
+        }
+    }
+}
+```
+
+### 10.2 取消令牌的正确使用
+
+```csharp
+public class CancellationTokenBestPractice : MonoBehaviour
+{
+    async void Start()
+    {
+        // ✅ 正确：使用 GetCancellationTokenOnDestroy
+        var cancellationToken = this.GetCancellationTokenOnDestroy();
+        
+        try
+        {
+            await LongOperationAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            Debug.Log("操作已取消");
+        }
+    }
+
+    async UniTask LongOperationAsync(CancellationToken cancellationToken)
+    {
+        // 在循环中检查取消
+        for (int i = 0; i < 100; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            await UniTask.Delay(100, cancellationToken: cancellationToken);
+            // 执行操作
+        }
+    }
+}
+```
+
+### 10.3 避免内存泄漏
+
+```csharp
+public class MemoryLeakPrevention : MonoBehaviour
+{
+    private CancellationTokenSource cts;
+
+    async void Start()
+    {
+        // ✅ 正确：创建并管理 CancellationTokenSource
+        cts = new CancellationTokenSource();
+        
+        await LongOperationAsync(cts.Token);
+    }
+
+    async UniTask LongOperationAsync(CancellationToken cancellationToken)
+    {
+        // 长时间操作
+        await UniTask.Delay(10000, cancellationToken: cancellationToken);
+    }
+
+    void OnDestroy()
+    {
+        // ✅ 重要：清理资源
+        cts?.Cancel();
+        cts?.Dispose();
+    }
+}
+```
+
+## 11. 实际项目应用示例
+
+### 11.1 游戏启动流程
+
+```csharp
+public class GameStartupFlow : MonoBehaviour
+{
+    async void Start()
+    {
+        var cancellationToken = this.GetCancellationTokenOnDestroy();
+        
+        try
+        {
+            // 1. 显示加载界面
+            ShowLoadingScreen();
+            
+            // 2. 并行加载资源
+            var (config, playerData, sceneData) = await UniTask.WhenAll(
+                LoadConfigAsync(cancellationToken),
+                LoadPlayerDataAsync(cancellationToken),
+                PreloadSceneAsync(cancellationToken)
+            );
+            
+            // 3. 初始化系统
+            await InitializeSystemsAsync(config, cancellationToken);
+            
+            // 4. 隐藏加载界面
+            HideLoadingScreen();
+            
+            // 5. 进入游戏
+            StartGame();
+        }
+        catch (OperationCanceledException)
+        {
+            Debug.Log("启动流程已取消");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"启动失败: {ex.Message}");
+            ShowErrorScreen(ex);
+        }
+    }
+
+    async UniTask<GameConfig> LoadConfigAsync(CancellationToken ct) { /* ... */ }
+    async UniTask<PlayerData> LoadPlayerDataAsync(CancellationToken ct) { /* ... */ }
+    async UniTask<SceneData> PreloadSceneAsync(CancellationToken ct) { /* ... */ }
+    async UniTask InitializeSystemsAsync(GameConfig config, CancellationToken ct) { /* ... */ }
+    
+    void ShowLoadingScreen() { /* ... */ }
+    void HideLoadingScreen() { /* ... */ }
+    void StartGame() { /* ... */ }
+    void ShowErrorScreen(Exception ex) { /* ... */ }
+}
+```
+
+### 11.2 网络请求封装
+
+```csharp
+public class ApiClient : MonoBehaviour
+{
+    private const float DefaultTimeout = 10f;
+
+    public async UniTask<T> GetAsync<T>(string endpoint, CancellationToken cancellationToken = default)
+    {
+        var url = $"{BaseUrl}/{endpoint}";
+        
+        try
+        {
+            var json = await GetRequestAsync(url, cancellationToken)
+                .Timeout(TimeSpan.FromSeconds(DefaultTimeout));
+            
+            return JsonUtility.FromJson<T>(json);
+        }
+        catch (TimeoutException)
+        {
+            throw new ApiException("请求超时", ApiErrorCode.Timeout);
+        }
+        catch (UnityWebRequestException ex)
+        {
+            throw new ApiException($"网络错误: {ex.Message}", ApiErrorCode.NetworkError);
+        }
+    }
+
+    async UniTask<string> GetRequestAsync(string url, CancellationToken cancellationToken)
+    {
+        using (var request = UnityWebRequest.Get(url))
+        {
+            var operation = request.SendWebRequest();
+            await operation.ToUniTask(cancellationToken: cancellationToken);
+            
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                throw new UnityWebRequestException(request);
+            }
+            
+            return request.downloadHandler.text;
+        }
+    }
+}
+```
+
+## 最佳实践总结
+
+1. **始终使用 CancellationToken**：长时间操作必须支持取消
+2. **避免 async void**：除了事件处理，使用 **async UniTask**
+3. **合理使用并行**：WhenAll 和 WhenAny 提升性能
+4. **设置超时**：网络请求和长时间操作设置超时
+5. **错误处理**：统一的错误处理和恢复策略
+6. **资源清理**：及时释放 CancellationTokenSource 等资源
+7. **性能优化**：避免不必要的 await，使用批量操作
+8. **代码组织**：使用状态机和管道模式处理复杂流程
+
+## 总结
+
+UniTask 的高级用法和最佳实践包括：
+
+- **并行处理**：WhenAll、WhenAny、并发控制
+- **超时和重试**：Timeout、Retry 机制
+- **资源管理**：资源加载、网络请求
+- **UI 集成**：安全的 UI 更新、等待交互
+- **复杂场景**：状态机、管道模式
+- **性能优化**：避免不必要的等待、批量操作
+- **错误处理**：统一处理、恢复策略
+- **最佳实践**：避免常见陷阱、正确使用取消令牌
+
+掌握这些高级技巧后，可以在 Unity 项目中构建高效、可靠的异步系统。
+
+## 参考资料
+
+- [UniTask GitHub](https://github.com/Cysharp/UniTask)
+- [UniTask 文档](https://github.com/Cysharp/UniTask#readme)
+- [UniTask 示例](https://github.com/Cysharp/UniTask/tree/master/src/UniTask/Assets/UniTask/Runtime/Internal)

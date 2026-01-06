@@ -1,0 +1,850 @@
+---
+title: "C# 高性能集合与常用技巧"
+date: "2024-12-22"
+category: "languages"
+tags: ["C#", ".NET", "性能优化", "数据结构", "集合", "Dictionary", "HashSet"]
+description: "深入探讨 C# 中高性能集合类的使用技巧，包括 Dictionary、HashSet、ArrayPool 等，以及开发中的常用优化技巧"
+featured: true
+---
+
+# C# 高性能集合与常用技巧
+
+## 概述
+
+在 C# 开发中，选择合适的集合类型和优化技巧对性能至关重要。本文深入探讨 Dictionary、HashSet 等高性能集合的高级用法，以及实际开发中的常用优化技巧。
+
+## 1. Dictionary（字典）高级用法
+
+### 1.1 Dictionary 性能特性
+
+Dictionary<TKey, TValue> 基于哈希表实现，平均时间复杂度为 O(1)。
+
+```csharp
+// 创建字典时指定初始容量，避免扩容
+var dict = new Dictionary<string, int>(1000); // 预分配容量
+
+// 指定容量和比较器
+var caseInsensitiveDict = new Dictionary<string, int>(
+    1000, 
+    StringComparer.OrdinalIgnoreCase
+);
+```
+
+### 1.2 TryGetValue vs ContainsKey + 索引访问
+
+```csharp
+var dict = new Dictionary<string, int> { ["key"] = 100 };
+
+// ❌ 低效：两次哈希查找
+if (dict.ContainsKey("key"))
+{
+    var value = dict["key"];
+}
+
+// ✅ 高效：一次哈希查找
+if (dict.TryGetValue("key", out var value))
+{
+    // 使用 value
+}
+```
+
+### 1.3 GetValueOrDefault 和索引器
+
+```csharp
+var dict = new Dictionary<string, int> { ["a"] = 1 };
+
+// 安全获取值，不存在返回默认值
+var value1 = dict.GetValueOrDefault("a");      // 1
+var value2 = dict.GetValueOrDefault("b");      // 0（int 的默认值）
+var value3 = dict.GetValueOrDefault("b", -1);  // -1（指定默认值）
+
+// 索引器会抛出异常（如果键不存在）
+// var value4 = dict["b"]; // KeyNotFoundException
+```
+
+### 1.4 字典初始化技巧
+
+```csharp
+// 集合初始化器
+var dict1 = new Dictionary<string, int>
+{
+    ["key1"] = 1,
+    ["key2"] = 2,
+    ["key3"] = 3
+};
+
+// 使用 LINQ 从集合创建字典
+var items = new[] { "a", "b", "c" };
+var dict2 = items.ToDictionary(x => x, x => x.Length);
+
+// 分组后转换为字典
+var groups = items.GroupBy(x => x[0])
+                  .ToDictionary(g => g.Key, g => g.ToList());
+```
+
+### 1.5 字典的键和值集合
+
+```csharp
+var dict = new Dictionary<string, int>
+{
+    ["a"] = 1,
+    ["b"] = 2,
+    ["c"] = 3
+};
+
+// 获取所有键（返回 KeyCollection，高效）
+var keys = dict.Keys; // 不是副本，是视图
+foreach (var key in keys)
+{
+    Console.WriteLine(key);
+}
+
+// 获取所有值（返回 ValueCollection，高效）
+var values = dict.Values;
+foreach (var value in values)
+{
+    Console.WriteLine(value);
+}
+
+// 如果需要修改字典，先转换为列表
+var keysList = dict.Keys.ToList();
+```
+
+### 1.6 自定义键类型
+
+```csharp
+// 自定义类作为键，需要实现 Equals 和 GetHashCode
+public class PersonKey : IEquatable<PersonKey>
+{
+    public string Name { get; set; }
+    public int Age { get; set; }
+
+    public bool Equals(PersonKey? other)
+    {
+        if (other == null) return false;
+        return Name == other.Name && Age == other.Age;
+    }
+
+    public override bool Equals(object? obj) => Equals(obj as PersonKey);
+
+    public override int GetHashCode()
+    {
+        // 使用 HashCode.Combine（.NET Core 2.1+）
+        return HashCode.Combine(Name, Age);
+        
+        // 或手动实现
+        // return (Name?.GetHashCode() ?? 0) ^ Age;
+    }
+}
+
+var dict = new Dictionary<PersonKey, string>();
+dict[new PersonKey { Name = "张三", Age = 25 }] = "员工";
+```
+
+### 1.7 并发字典（ConcurrentDictionary）
+
+```csharp
+using System.Collections.Concurrent;
+
+var concurrentDict = new ConcurrentDictionary<string, int>();
+
+// 线程安全的添加或更新
+concurrentDict.AddOrUpdate("key", 1, (key, oldValue) => oldValue + 1);
+
+// 获取或添加
+var value = concurrentDict.GetOrAdd("key", key => 1);
+
+// 尝试更新
+if (concurrentDict.TryUpdate("key", 2, 1))
+{
+    // 成功更新
+}
+```
+
+## 2. HashSet（哈希集合）高级用法
+
+### 2.1 HashSet 性能特性
+
+HashSet<T> 基于哈希表实现，查找、插入、删除的平均时间复杂度为 O(1)。
+
+```csharp
+// 指定初始容量和比较器
+var hashSet = new HashSet<string>(1000, StringComparer.OrdinalIgnoreCase);
+
+// 从集合初始化
+var items = new[] { "a", "b", "c", "a" };
+var hashSet2 = new HashSet<string>(items); // 自动去重：{ "a", "b", "c" }
+```
+
+### 2.2 集合操作
+
+```csharp
+var set1 = new HashSet<int> { 1, 2, 3, 4, 5 };
+var set2 = new HashSet<int> { 4, 5, 6, 7, 8 };
+
+// 并集（Union）
+var union = new HashSet<int>(set1);
+union.UnionWith(set2); // { 1, 2, 3, 4, 5, 6, 7, 8 }
+
+// 交集（Intersection）
+var intersection = new HashSet<int>(set1);
+intersection.IntersectWith(set2); // { 4, 5 }
+
+// 差集（Except）
+var except = new HashSet<int>(set1);
+except.ExceptWith(set2); // { 1, 2, 3 }
+
+// 对称差集（Symmetric Except）
+var symmetricExcept = new HashSet<int>(set1);
+symmetricExcept.SymmetricExceptWith(set2); // { 1, 2, 3, 6, 7, 8 }
+
+// 判断是否为子集
+bool isSubset = set1.IsSubsetOf(set2);        // False
+bool isSuperset = set1.IsSupersetOf(set2);    // False
+bool overlaps = set1.Overlaps(set2);          // True（有重叠）
+bool setEquals = set1.SetEquals(set2);        // False
+```
+
+### 2.3 HashSet vs List 性能对比
+
+```csharp
+// ❌ 使用 List 查找（O(n)）
+var list = new List<int> { 1, 2, 3, 4, 5 };
+if (list.Contains(3)) // 线性查找
+{
+    // ...
+}
+
+// ✅ 使用 HashSet 查找（O(1)）
+var hashSet = new HashSet<int> { 1, 2, 3, 4, 5 };
+if (hashSet.Contains(3)) // 哈希查找
+{
+    // ...
+}
+```
+
+### 2.4 去重技巧
+
+```csharp
+// 使用 HashSet 去重（保持顺序需要使用其他方法）
+var duplicates = new[] { 1, 2, 2, 3, 3, 3, 4 };
+var unique = new HashSet<int>(duplicates); // { 1, 2, 3, 4 }
+
+// 使用 LINQ Distinct（保持顺序）
+var uniqueOrdered = duplicates.Distinct().ToList(); // { 1, 2, 3, 4 }
+
+// 复杂对象去重
+var people = new[]
+{
+    new { Name = "张三", Age = 25 },
+    new { Name = "李四", Age = 30 },
+    new { Name = "张三", Age = 25 }
+};
+
+var uniquePeople = people.DistinctBy(p => new { p.Name, p.Age }).ToList();
+```
+
+## 3. 其他高性能集合
+
+### 3.1 SortedDictionary vs SortedList
+
+```csharp
+// SortedDictionary：基于红黑树，插入删除 O(log n)，内存开销较大
+var sortedDict = new SortedDictionary<int, string>
+{
+    [3] = "c",
+    [1] = "a",
+    [2] = "b"
+};
+// 按键排序：{ 1: "a", 2: "b", 3: "c" }
+
+// SortedList：基于数组，插入删除 O(n)，但内存效率高
+var sortedList = new SortedList<int, string>
+{
+    [3] = "c",
+    [1] = "a",
+    [2] = "b"
+};
+
+// 选择建议：
+// - 频繁插入删除：使用 SortedDictionary
+// - 主要查询，偶尔插入：使用 SortedList
+```
+
+### 3.2 LinkedList（双向链表）
+
+```csharp
+var linkedList = new LinkedList<int>();
+
+// 高效的头尾操作
+linkedList.AddFirst(1);  // O(1)
+linkedList.AddLast(2);   // O(1)
+linkedList.RemoveFirst(); // O(1)
+linkedList.RemoveLast();  // O(1)
+
+// 在指定节点前后插入（O(1)）
+var node = linkedList.First;
+if (node != null)
+{
+    linkedList.AddAfter(node, 3);
+    linkedList.AddBefore(node, 0);
+}
+```
+
+### 3.3 Queue 和 Stack
+
+```csharp
+// Queue（队列）- FIFO
+var queue = new Queue<int>();
+queue.Enqueue(1);  // O(1)
+queue.Enqueue(2);
+var first = queue.Dequeue(); // 1，O(1)
+
+// Stack（栈）- LIFO
+var stack = new Stack<int>();
+stack.Push(1);     // O(1)
+stack.Push(2);
+var top = stack.Pop(); // 2，O(1)
+```
+
+### 3.4 ArrayPool（数组池）- 高性能内存管理
+
+```csharp
+using System.Buffers;
+
+// 租用数组（避免频繁分配）
+var pool = ArrayPool<int>.Shared;
+var array = pool.Rent(1000); // 租用至少 1000 长度的数组
+
+try
+{
+    // 使用 array
+    for (int i = 0; i < 1000; i++)
+    {
+        array[i] = i;
+    }
+}
+finally
+{
+    // 归还数组到池中
+    pool.Return(array);
+}
+
+// 自定义数组池
+var customPool = ArrayPool<int>.Create(maxArrayLength: 10000, maxArraysPerBucket: 10);
+```
+
+### 3.5 MemoryPool（内存池）
+
+```csharp
+using System.Buffers;
+
+var pool = MemoryPool<byte>.Shared;
+using var owner = pool.Rent(1024);
+var memory = owner.Memory;
+
+// 使用 memory.Span 进行操作
+var span = memory.Span;
+span[0] = 100;
+```
+
+## 4. 集合性能优化技巧
+
+### 4.1 预分配容量
+
+```csharp
+// ❌ 不指定容量，频繁扩容
+var list = new List<int>();
+for (int i = 0; i < 10000; i++)
+{
+    list.Add(i); // 可能多次扩容
+}
+
+// ✅ 预分配容量
+var list2 = new List<int>(10000);
+for (int i = 0; i < 10000; i++)
+{
+    list2.Add(i); // 无需扩容
+}
+```
+
+### 4.2 使用 Span<T> 和 Memory<T>
+
+```csharp
+// Span<T>：栈上分配，零开销抽象
+int[] array = { 1, 2, 3, 4, 5 };
+Span<int> span = array.AsSpan();
+
+// 切片操作（零拷贝）
+Span<int> slice = span[1..3]; // { 2, 3 }
+
+// 修改会影响原数组
+slice[0] = 99;
+// array 现在是 { 1, 99, 3, 4, 5 }
+
+// Memory<T>：堆上分配，可以跨异步边界
+Memory<int> memory = array;
+```
+
+### 4.3 避免装箱和拆箱
+
+```csharp
+// ❌ 装箱（值类型 -> object）
+object obj = 42; // 装箱
+int value = (int)obj; // 拆箱
+
+// ✅ 使用泛型
+var list = new List<int>(); // 无装箱
+list.Add(42);
+int value2 = list[0]; // 无拆箱
+```
+
+### 4.4 使用结构体代替类（小对象）
+
+```csharp
+// 结构体（值类型，栈分配）
+public struct Point
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+// 类（引用类型，堆分配）
+public class PointClass
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+// 大量小对象时，结构体性能更好
+var points = new Point[1000000]; // 栈分配，性能好
+var pointClasses = new PointClass[1000000]; // 堆分配，GC 压力大
+```
+
+## 5. LINQ 性能优化
+
+### 5.1 延迟执行 vs 立即执行
+
+```csharp
+var numbers = Enumerable.Range(1, 1000000);
+
+// 延迟执行：不会立即计算
+var query = numbers.Where(x => x % 2 == 0).Select(x => x * 2);
+
+// 只有在迭代时才执行
+foreach (var item in query)
+{
+    // 此时才执行过滤和映射
+}
+
+// 立即执行：使用 ToList() 或 ToArray()
+var list = numbers.Where(x => x % 2 == 0).ToList(); // 立即计算
+```
+
+### 5.2 避免重复查询
+
+```csharp
+var numbers = new[] { 1, 2, 3, 4, 5 };
+
+// ❌ 多次执行查询
+if (numbers.Where(x => x > 2).Any())
+{
+    var count = numbers.Where(x => x > 2).Count(); // 重复执行
+}
+
+// ✅ 缓存结果
+var filtered = numbers.Where(x => x > 2).ToList();
+if (filtered.Any())
+{
+    var count = filtered.Count();
+}
+```
+
+### 5.3 使用索引的 LINQ 方法
+
+```csharp
+var items = new[] { "a", "b", "c" };
+
+// 需要索引时使用 Select 的重载
+var indexed = items.Select((item, index) => new { item, index });
+
+// 或使用循环（性能更好）
+for (int i = 0; i < items.Length; i++)
+{
+    var item = items[i];
+    // 处理 item 和 i
+}
+```
+
+### 5.4 并行 LINQ（PLINQ）
+
+```csharp
+using System.Linq;
+
+var numbers = Enumerable.Range(1, 1000000);
+
+// 并行处理
+var result = numbers.AsParallel()
+                   .Where(x => x % 2 == 0)
+                   .Select(x => x * x)
+                   .ToList();
+
+// 注意：并行化有开销，只在大数据集时才有优势
+```
+
+## 6. 字符串处理优化
+
+### 6.1 StringBuilder vs 字符串拼接
+
+```csharp
+// ❌ 频繁字符串拼接（创建新对象）
+string result = "";
+for (int i = 0; i < 1000; i++)
+{
+    result += i.ToString(); // 每次创建新字符串
+}
+
+// ✅ 使用 StringBuilder
+var sb = new StringBuilder(10000); // 预分配容量
+for (int i = 0; i < 1000; i++)
+{
+    sb.Append(i);
+}
+string result2 = sb.ToString();
+```
+
+### 6.2 字符串插值 vs 格式化
+
+```csharp
+var name = "张三";
+var age = 25;
+
+// ✅ 字符串插值（编译器优化）
+string message1 = $"{name} 今年 {age} 岁";
+
+// 传统格式化
+string message2 = string.Format("{0} 今年 {1} 岁", name, age);
+```
+
+### 6.3 字符串比较优化
+
+```csharp
+string str1 = "Hello";
+string str2 = "hello";
+
+// ❌ 默认比较（可能涉及文化信息）
+bool equal1 = str1.Equals(str2);
+
+// ✅ 指定比较方式
+bool equal2 = str1.Equals(str2, StringComparison.OrdinalIgnoreCase);
+
+// 字典中使用
+var dict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+```
+
+## 7. 常用开发技巧
+
+### 7.1 空值处理
+
+```csharp
+// 空合并运算符
+string name = null;
+string displayName = name ?? "未知";
+
+// 空条件运算符
+int? length = name?.Length;
+
+// 空合并赋值
+name ??= "默认值";
+
+// 链式空条件
+var result = obj?.Property?.SubProperty?.Value;
+```
+
+### 7.2 条件表达式
+
+```csharp
+// 三元运算符
+int max = a > b ? a : b;
+
+// 空合并运算符
+string value = str ?? "默认";
+
+// Switch 表达式（C# 8.0+）
+string status = code switch
+{
+    200 => "OK",
+    404 => "Not Found",
+    _ => "Unknown"
+};
+```
+
+### 7.3 对象初始化
+
+```csharp
+// 对象初始化器
+var person = new Person
+{
+    Name = "张三",
+    Age = 25
+};
+
+// 集合初始化器
+var list = new List<int> { 1, 2, 3, 4, 5 };
+
+// 字典初始化器
+var dict = new Dictionary<string, int>
+{
+    ["a"] = 1,
+    ["b"] = 2
+};
+```
+
+### 7.4 扩展方法
+
+```csharp
+public static class StringExtensions
+{
+    public static bool IsNullOrEmpty(this string? str)
+    {
+        return string.IsNullOrEmpty(str);
+    }
+    
+    public static string Reverse(this string str)
+    {
+        return new string(str.Reverse().ToArray());
+    }
+}
+
+// 使用
+string? text = null;
+if (text.IsNullOrEmpty())
+{
+    // ...
+}
+```
+
+### 7.5 委托和 Lambda 表达式
+
+```csharp
+// Func 委托
+Func<int, int, int> add = (a, b) => a + b;
+int result = add(1, 2); // 3
+
+// Action 委托
+Action<string> print = s => Console.WriteLine(s);
+print("Hello");
+
+// 事件处理
+button.Click += (sender, e) => Console.WriteLine("Clicked");
+```
+
+### 7.6 异常处理最佳实践
+
+```csharp
+try
+{
+    // 可能抛出异常的代码
+}
+catch (SpecificException ex)
+{
+    // 处理特定异常
+    Logger.LogError(ex);
+}
+catch (Exception ex)
+{
+    // 处理其他异常
+    Logger.LogError(ex);
+    throw; // 重新抛出，保留堆栈跟踪
+}
+finally
+{
+    // 清理资源
+}
+```
+
+## 8. 性能测试和基准测试
+
+### 8.1 使用 BenchmarkDotNet
+
+```csharp
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Running;
+
+[MemoryDiagnoser]
+public class DictionaryBenchmark
+{
+    private Dictionary<string, int> dict = new();
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        for (int i = 0; i < 1000; i++)
+        {
+            dict[$"key{i}"] = i;
+        }
+    }
+
+    [Benchmark]
+    public bool ContainsKeyAndIndex()
+    {
+        if (dict.ContainsKey("key500"))
+        {
+            return dict["key500"] > 0;
+        }
+        return false;
+    }
+
+    [Benchmark]
+    public bool TryGetValue()
+    {
+        if (dict.TryGetValue("key500", out var value))
+        {
+            return value > 0;
+        }
+        return false;
+    }
+}
+
+// 运行基准测试
+// BenchmarkRunner.Run<DictionaryBenchmark>();
+```
+
+## 9. 内存管理技巧
+
+### 9.1 使用 using 语句
+
+```csharp
+// 自动释放资源
+using var stream = new FileStream("file.txt", FileMode.Open);
+// 使用 stream
+// 自动调用 Dispose()
+
+// 多个资源
+using var stream1 = new FileStream("file1.txt", FileMode.Open);
+using var stream2 = new FileStream("file2.txt", FileMode.Open);
+```
+
+### 9.2 避免内存泄漏
+
+```csharp
+// ❌ 事件未取消订阅可能导致内存泄漏
+public class Publisher
+{
+    public event EventHandler? SomethingHappened;
+}
+
+public class Subscriber
+{
+    public void Subscribe(Publisher pub)
+    {
+        pub.SomethingHappened += OnSomething;
+    }
+    
+    // 如果 Subscriber 被销毁但未取消订阅，Publisher 仍持有引用
+}
+
+// ✅ 取消订阅
+public void Unsubscribe(Publisher pub)
+{
+    pub.SomethingHappened -= OnSomething;
+}
+```
+
+## 10. 实际应用场景
+
+### 10.1 缓存实现
+
+```csharp
+public class SimpleCache<TKey, TValue> where TKey : notnull
+{
+    private readonly Dictionary<TKey, TValue> _cache = new();
+    private readonly int _maxSize;
+
+    public SimpleCache(int maxSize = 1000)
+    {
+        _maxSize = maxSize;
+    }
+
+    public TValue? Get(TKey key)
+    {
+        return _cache.TryGetValue(key, out var value) ? value : default;
+    }
+
+    public void Set(TKey key, TValue value)
+    {
+        if (_cache.Count >= _maxSize)
+        {
+            // 简单的 FIFO 策略：移除第一个
+            var firstKey = _cache.Keys.First();
+            _cache.Remove(firstKey);
+        }
+        _cache[key] = value;
+    }
+}
+```
+
+### 10.2 去重统计
+
+```csharp
+// 统计唯一值数量
+var items = new[] { 1, 2, 2, 3, 3, 3, 4, 4, 4, 4 };
+var uniqueCount = new HashSet<int>(items).Count; // 4
+
+// 统计每个值的出现次数
+var counts = new Dictionary<int, int>();
+foreach (var item in items)
+{
+    counts[item] = counts.GetValueOrDefault(item, 0) + 1;
+}
+// { 1: 1, 2: 2, 3: 3, 4: 4 }
+```
+
+## 最佳实践总结
+
+1. **选择合适的集合类型**
+   - 需要键值对：Dictionary
+   - 只需要唯一值：HashSet
+   - 需要排序：SortedDictionary 或 SortedList
+   - 频繁头尾操作：LinkedList
+
+2. **预分配容量**：避免频繁扩容
+
+3. **使用 TryGetValue**：避免两次哈希查找
+
+4. **避免装箱拆箱**：使用泛型集合
+
+5. **合理使用 LINQ**：注意延迟执行和性能开销
+
+6. **字符串处理**：大量拼接使用 StringBuilder
+
+7. **内存管理**：及时释放资源，避免内存泄漏
+
+## 性能对比参考
+
+| 操作 | List | HashSet | Dictionary | SortedDictionary |
+|------|------|---------|------------|------------------|
+| 查找 | O(n) | O(1) | O(1) | O(log n) |
+| 插入 | O(1)* | O(1) | O(1) | O(log n) |
+| 删除 | O(n) | O(1) | O(1) | O(log n) |
+| 排序 | O(n log n) | N/A | N/A | 自动排序 |
+
+*平均情况，最坏情况 O(n) 由于扩容
+
+## 总结
+
+掌握 C# 高性能集合和常用技巧，可以显著提升代码性能和开发效率。关键点：
+
+- **理解各集合的特性**：选择合适的数据结构
+- **避免常见性能陷阱**：如重复查询、频繁扩容等
+- **合理使用现代特性**：如 Span、Memory、ArrayPool 等
+- **进行性能测试**：使用 BenchmarkDotNet 验证优化效果
+
+在实际开发中，应根据具体场景选择合适的集合类型和优化策略，平衡代码可读性和性能需求。
+
+## 参考资料
+
+- [.NET Collections 文档](https://docs.microsoft.com/zh-cn/dotnet/standard/collections/)
+- [Dictionary 性能指南](https://docs.microsoft.com/zh-cn/dotnet/api/system.collections.generic.dictionary-2)
+- [BenchmarkDotNet](https://benchmarkdotnet.org/)
+- [.NET 性能最佳实践](https://docs.microsoft.com/zh-cn/dotnet/fundamentals/performance/)

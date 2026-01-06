@@ -1,0 +1,637 @@
+---
+title: "UniTask 原理与基础用法"
+date: "2024-12-22"
+category: "unity"
+tags: ["Unity", "UniTask", "异步编程", "C#", "协程", "性能优化"]
+description: "深入理解 UniTask 的原理机制，学习 UniTask 的基础用法，包括创建、等待、取消等核心功能"
+featured: true
+---
+
+# UniTask 原理与基础用法
+
+## 概述
+
+UniTask 是 Cysharp 开发的 Unity 专用异步/等待库，专为 Unity 游戏开发优化。它提供了零 GC 分配、基于 Unity PlayerLoop 的高性能异步编程解决方案，是 Unity 中协程和 Task 的优秀替代品。
+
+## 1. 为什么需要 UniTask？
+
+### 1.1 协程的局限性
+
+```csharp
+// 传统协程的问题
+IEnumerator LoadData()
+{
+    yield return new WaitForSeconds(1f); // 分配 GC
+    yield return StartCoroutine(LoadAnother()); // 无法返回值
+    // 难以处理异常和取消
+}
+```
+
+**协程的主要问题**：
+- ❌ 无法返回值
+- ❌ 难以处理异常
+- ❌ 取消操作复杂
+- ❌ 会产生 GC 分配
+- ❌ 无法使用 async/await 语法
+
+### 1.2 Task 在 Unity 中的问题
+
+```csharp
+// Task 在 Unity 中的问题
+async Task LoadData()
+{
+    await Task.Delay(1000); // 不基于 Unity 的时间系统
+    // 主线程同步上下文问题
+    // GC 分配较大
+}
+```
+
+**Task 的主要问题**：
+- ❌ GC 分配较大
+- ❌ 不基于 Unity 的 PlayerLoop
+- ❌ 主线程同步上下文可能有问题
+- ❌ 性能不如协程
+
+### 1.3 UniTask 的优势
+
+- ✅ **零 GC 分配**：基于值类型的异步状态机
+- ✅ **基于 Unity PlayerLoop**：完美集成 Unity 生命周期
+- ✅ **async/await 语法**：现代化的异步编程体验
+- ✅ **高性能**：比协程和 Task 更快
+- ✅ **丰富的 API**：支持取消、超时、等待等
+
+## 2. UniTask 核心原理
+
+### 2.1 值类型异步状态机
+
+UniTask 的核心创新是使用值类型（struct）实现异步状态机，避免了引用类型的 GC 分配：
+
+```csharp
+// UniTask 是值类型
+public readonly struct UniTask
+{
+    // 内部使用值类型存储状态
+    // 不产生堆分配
+}
+
+// 对比：Task 是引用类型
+Task task = Task.Delay(1000); // 产生堆分配
+UniTask uniTask = UniTask.Delay(1000); // 零 GC 分配
+```
+
+### 2.2 基于 Unity PlayerLoop
+
+UniTask 直接集成到 Unity 的 PlayerLoop 系统中，可以精确控制执行时机：
+
+```csharp
+// UniTask 可以指定 PlayerLoop 时机
+await UniTask.Yield(PlayerLoopTiming.Update);
+await UniTask.Yield(PlayerLoopTiming.LateUpdate);
+await UniTask.Yield(PlayerLoopTiming.FixedUpdate);
+```
+
+### 2.3 异步状态机实现
+
+UniTask 编译器会将 async/await 代码转换为状态机：
+
+```csharp
+// 源代码
+async UniTask LoadData()
+{
+    await UniTask.Delay(1000);
+    Debug.Log("完成");
+}
+
+// 编译器转换后的状态机（简化示意）
+struct LoadDataStateMachine : IUniTaskSource
+{
+    int state;
+    UniTaskCompletionSource completionSource;
+    
+    void MoveNext()
+    {
+        switch (state)
+        {
+            case 0:
+                // 等待延迟
+                state = 1;
+                UniTask.Delay(1000).GetAwaiter().OnCompleted(MoveNext);
+                break;
+            case 1:
+                // 执行后续代码
+                Debug.Log("完成");
+                completionSource.TrySetResult();
+                break;
+        }
+    }
+}
+```
+
+## 3. 安装和配置
+
+### 3.1 安装 UniTask
+
+UniTask 可以通过 Unity Package Manager 安装，有两种方式：
+
+#### 方式一：通过 Unity Package Manager 界面安装
+
+**步骤 1：打开 Package Manager**
+
+在 Unity 编辑器中，点击菜单栏 Window > Package Manager 打开 Package Manager 窗口。
+
+**步骤 2：添加 Git 包**
+
+点击 Package Manager 窗口左上角的 + 按钮，在下拉菜单中选择 Add package from git URL...。
+
+**步骤 3：输入 Git URL**
+
+在弹出的输入框中输入以下 Git URL 地址：
+
+```
+https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask
+```
+
+输入完成后，点击 Add 按钮。
+
+**步骤 4：等待安装完成**
+
+Unity 会自动下载并导入 UniTask 包。安装完成后，你可以在 Package Manager 窗口的包列表中看到 UniTask 包。
+
+#### 方式二：通过 manifest.json 文件安装
+
+如果你更喜欢直接编辑配置文件，可以手动编辑 manifest.json 文件。
+
+**步骤 1：打开 manifest.json**
+
+在项目根目录找到 Packages/manifest.json 文件，使用文本编辑器打开。
+
+**步骤 2：添加依赖项**
+
+在 dependencies 对象中添加 UniTask 的配置。如果你的 manifest.json 文件已经有其他依赖项，只需要在 dependencies 对象中添加新的一行；如果没有 dependencies 对象，需要创建它。
+
+完整的 manifest.json 文件示例：
+
+```json
+{
+  "dependencies": {
+    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask"
+  }
+}
+```
+
+如果你的文件已经有其他依赖项，只需要添加这一行：
+
+```json
+"com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask"
+```
+
+**步骤 3：保存文件**
+
+保存 manifest.json 文件后，Unity 会自动检测并开始安装。
+
+> **注意**：安装完成后，可能需要等待 Unity 重新编译项目。如果遇到问题，可以尝试重启 Unity 编辑器。
+
+### 3.2 命名空间
+
+```csharp
+using Cysharp.Threading.Tasks;
+using Cysharp.Threading.Tasks.Linq;
+```
+
+## 4. 基础用法
+
+### 4.1 创建 UniTask
+
+```csharp
+using Cysharp.Threading.Tasks;
+using UnityEngine;
+
+public class UniTaskBasics : MonoBehaviour
+{
+    // 方法1：直接返回 UniTask
+    async UniTask LoadData()
+    {
+        await UniTask.Delay(1000);
+        Debug.Log("数据加载完成");
+    }
+
+    // 方法2：返回值的 UniTask<T>
+    async UniTask<string> LoadDataAsync()
+    {
+        await UniTask.Delay(1000);
+        return "数据内容";
+    }
+
+    // 方法3：从现有 Task 转换
+    async UniTask ConvertFromTask()
+    {
+        var task = Task.Delay(1000);
+        await task.AsUniTask();
+    }
+}
+```
+
+### 4.2 基本等待操作
+
+```csharp
+public class BasicAwait : MonoBehaviour
+{
+    async void Start()
+    {
+        // 延迟指定时间
+        await UniTask.Delay(1000); // 毫秒
+        await UniTask.Delay(TimeSpan.FromSeconds(1)); // TimeSpan
+        
+        // 延迟帧数
+        await UniTask.DelayFrame(60); // 等待 60 帧
+        
+        // 等待下一帧
+        await UniTask.Yield();
+        
+        // 等待条件满足
+        await UniTask.WaitUntil(() => Input.GetKeyDown(KeyCode.Space));
+        
+        // 等待条件不满足
+        await UniTask.WaitWhile(() => isLoading);
+        
+        // 等待直到值改变
+        await UniTask.WaitUntilValueChanged(this, x => x.transform.position);
+    }
+}
+```
+
+### 4.3 取消操作（CancellationToken）
+
+```csharp
+using System.Threading;
+
+public class CancellationExample : MonoBehaviour
+{
+    private CancellationTokenSource cts;
+
+    async void Start()
+    {
+        // 创建 CancellationTokenSource
+        cts = new CancellationTokenSource();
+        
+        // 传递 CancellationToken
+        await LoadDataAsync(cts.Token);
+    }
+
+    async UniTask LoadDataAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            // 在延迟中检查取消
+            await UniTask.Delay(5000, cancellationToken: cancellationToken);
+            Debug.Log("加载完成");
+        }
+        catch (OperationCanceledException)
+        {
+            Debug.Log("操作已取消");
+        }
+    }
+
+    void OnDestroy()
+    {
+        // 组件销毁时取消操作
+        cts?.Cancel();
+        cts?.Dispose();
+    }
+}
+```
+
+### 4.4 使用 GetCancellationTokenOnDestroy
+
+```csharp
+public class AutoCancellation : MonoBehaviour
+{
+    async void Start()
+    {
+        // 自动在组件销毁时取消
+        var cancellationToken = this.GetCancellationTokenOnDestroy();
+        
+        try
+        {
+            await LoadDataAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            Debug.Log("组件已销毁，操作取消");
+        }
+    }
+
+    async UniTask LoadDataAsync(CancellationToken cancellationToken)
+    {
+        await UniTask.Delay(5000, cancellationToken: cancellationToken);
+    }
+}
+```
+
+## 5. 返回值处理
+
+### 5.1 UniTask<T> 返回值
+
+```csharp
+public class ReturnValueExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 获取返回值
+        string data = await LoadDataAsync();
+        Debug.Log($"数据: {data}");
+        
+        // 多个返回值
+        var (name, score) = await GetPlayerInfoAsync();
+        Debug.Log($"玩家: {name}, 分数: {score}");
+    }
+
+    async UniTask<string> LoadDataAsync()
+    {
+        await UniTask.Delay(1000);
+        return "加载的数据";
+    }
+
+    async UniTask<(string name, int score)> GetPlayerInfoAsync()
+    {
+        await UniTask.Delay(500);
+        return ("张三", 1000);
+    }
+}
+```
+
+### 5.2 处理多个异步操作
+
+```csharp
+public class MultipleOperations : MonoBehaviour
+{
+    async void Start()
+    {
+        // 顺序执行
+        var result1 = await Operation1();
+        var result2 = await Operation2();
+        
+        // 并行执行（后续高级用法中详细介绍）
+        // var (r1, r2) = await UniTask.WhenAll(Operation1(), Operation2());
+    }
+
+    async UniTask<int> Operation1()
+    {
+        await UniTask.Delay(1000);
+        return 1;
+    }
+
+    async UniTask<int> Operation2()
+    {
+        await UniTask.Delay(1000);
+        return 2;
+    }
+}
+```
+
+## 6. 与协程互操作
+
+### 6.1 协程转 UniTask
+
+```csharp
+public class CoroutineToUniTask : MonoBehaviour
+{
+    async void Start()
+    {
+        // 将协程转换为 UniTask
+        await CoroutineToUniTask(LoadDataCoroutine());
+    }
+
+    IEnumerator LoadDataCoroutine()
+    {
+        yield return new WaitForSeconds(1f);
+        Debug.Log("协程完成");
+    }
+
+    UniTask CoroutineToUniTask(IEnumerator coroutine)
+    {
+        return coroutine.ToUniTask(this);
+    }
+}
+```
+
+### 6.2 UniTask 转协程
+
+```csharp
+public class UniTaskToCoroutine : MonoBehaviour
+{
+    void Start()
+    {
+        // 将 UniTask 转换为协程
+        StartCoroutine(LoadDataAsync().ToCoroutine());
+    }
+
+    async UniTask LoadDataAsync()
+    {
+        await UniTask.Delay(1000);
+        Debug.Log("UniTask 完成");
+    }
+}
+```
+
+## 7. Unity 生命周期集成
+
+### 7.1 PlayerLoopTiming
+
+```csharp
+public class PlayerLoopTimingExample : MonoBehaviour
+{
+    async void Start()
+    {
+        // 在 Update 阶段执行
+        await UniTask.Yield(PlayerLoopTiming.Update);
+        
+        // 在 LateUpdate 阶段执行
+        await UniTask.Yield(PlayerLoopTiming.LateUpdate);
+        
+        // 在 FixedUpdate 阶段执行
+        await UniTask.Yield(PlayerLoopTiming.FixedUpdate);
+        
+        // 在 EndOfFrame 执行
+        await UniTask.Yield(PlayerLoopTiming.EndOfFrame);
+    }
+}
+```
+
+### 7.2 等待 Unity 对象
+
+```csharp
+public class UnityObjectAwait : MonoBehaviour
+{
+    async void Start()
+    {
+        // 等待 GameObject 被销毁
+        await gameObject.GetCancellationTokenOnDestroy();
+        
+        // 等待直到条件满足（基于 Unity 对象）
+        await UniTask.WaitUntil(() => transform.position.y > 10);
+        
+        // 等待值改变（自动检测 Unity 对象是否被销毁）
+        await UniTask.WaitUntilValueChanged(
+            this, 
+            x => x.transform.position,
+            cancellationToken: this.GetCancellationTokenOnDestroy()
+        );
+    }
+}
+```
+
+## 8. 错误处理
+
+### 8.1 Try-Catch 异常处理
+
+```csharp
+public class ErrorHandling : MonoBehaviour
+{
+    async void Start()
+    {
+        try
+        {
+            await LoadDataAsync();
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"加载失败: {ex.Message}");
+        }
+    }
+
+    async UniTask LoadDataAsync()
+    {
+        await UniTask.Delay(1000);
+        
+        // 模拟错误
+        if (Random.Range(0, 2) == 0)
+        {
+            throw new System.Exception("加载失败");
+        }
+    }
+}
+```
+
+### 8.2 安全执行（SuppressCancellationThrow）
+
+```csharp
+public class SafeExecution : MonoBehaviour
+{
+    async void Start()
+    {
+        // 不抛出取消异常，返回状态
+        var result = await LoadDataAsync()
+            .SuppressCancellationThrow();
+        
+        if (result.IsCanceled)
+        {
+            Debug.Log("操作已取消");
+        }
+        else
+        {
+            Debug.Log($"结果: {result.Result}");
+        }
+    }
+
+    async UniTask<string> LoadDataAsync()
+    {
+        await UniTask.Delay(5000, cancellationToken: 
+            this.GetCancellationTokenOnDestroy());
+        return "数据";
+    }
+}
+```
+
+## 9. 性能对比
+
+### 9.1 GC 分配对比
+
+```csharp
+// 协程：每次 yield 产生 GC
+IEnumerator CoroutineExample()
+{
+    yield return new WaitForSeconds(1f); // GC 分配
+    yield return new WaitForEndOfFrame(); // GC 分配
+}
+
+// UniTask：零 GC 分配
+async UniTask UniTaskExample()
+{
+    await UniTask.Delay(1000); // 零 GC
+    await UniTask.Yield(PlayerLoopTiming.EndOfFrame); // 零 GC
+}
+```
+
+### 9.2 性能基准测试
+
+根据 Cysharp 的基准测试：
+- **UniTask**：最快，零 GC
+- **协程**：中等速度，有 GC 分配
+- **Task**：较慢，GC 分配较大
+
+## 10. 基础用法总结
+
+### 10.1 常用模式
+
+```csharp
+public class CommonPatterns : MonoBehaviour
+{
+    // 模式1：简单的异步加载
+    async void Start()
+    {
+        await LoadGame();
+    }
+
+    async UniTask LoadGame()
+    {
+        await LoadData();
+        await LoadScene();
+        Debug.Log("游戏加载完成");
+    }
+
+    // 模式2：带取消的长时间操作
+    async UniTask LongOperation()
+    {
+        var cancellationToken = this.GetCancellationTokenOnDestroy();
+        
+        for (int i = 0; i < 100; i++)
+        {
+            await UniTask.Delay(100, cancellationToken: cancellationToken);
+            // 执行操作
+        }
+    }
+
+    // 模式3：返回值处理
+    async UniTask<string> GetData()
+    {
+        await UniTask.Delay(1000);
+        return "数据";
+    }
+}
+```
+
+### 10.2 注意事项
+
+1. **避免 async void**：除了事件处理，尽量使用 **async UniTask**
+2. **使用 CancellationToken**：长时间操作必须支持取消
+3. **错误处理**：使用 try-catch 处理异常
+4. **避免在 Update 中创建 UniTask**：应该在 Start 或事件中创建
+
+## 总结
+
+UniTask 通过以下核心特性解决了 Unity 异步编程的问题：
+
+1. **零 GC 分配**：基于值类型的异步状态机
+2. **Unity 集成**：完美支持 Unity PlayerLoop 和生命周期
+3. **现代化语法**：async/await 语法糖
+4. **高性能**：比协程和 Task 更快
+5. **丰富的 API**：支持取消、超时、等待等
+
+掌握 UniTask 的基础用法后，可以显著提升 Unity 项目的性能和代码质量。在下一篇文章中，我们将深入探讨 UniTask 的高级用法和最佳实践。
+
+## 参考资料
+
+- [UniTask GitHub](https://github.com/Cysharp/UniTask)
+- [UniTask 文档](https://github.com/Cysharp/UniTask#readme)
+- [C# async/await 文档](https://docs.microsoft.com/zh-cn/dotnet/csharp/async)

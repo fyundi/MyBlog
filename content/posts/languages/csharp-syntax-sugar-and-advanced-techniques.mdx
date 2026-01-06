@@ -1,0 +1,562 @@
+---
+title: "C# 语法糖与高级技巧"
+date: "2024-12-22"
+category: "languages"
+tags: ["C#", ".NET", "编程语言", "语法糖", "高级特性"]
+description: "深入探讨 C# 现代语法糖和高级用法技巧，包括模式匹配、记录类型、可空引用类型等新特性"
+featured: true
+---
+
+# C# 语法糖与高级技巧
+
+## 概述
+
+C# 作为一门现代化的编程语言，不断引入新的语法糖和特性，让代码更加简洁、安全和高效。本文介绍 C# 8.0 及以后版本中的新语法糖和高级用法技巧。
+
+## 1. 模式匹配（Pattern Matching）
+
+### Switch 表达式
+
+C# 8.0 引入了 switch 表达式，使代码更简洁：
+
+```csharp
+// 传统 switch 语句
+public string GetStatus(int code)
+{
+    switch (code)
+    {
+        case 200:
+            return "OK";
+        case 404:
+            return "Not Found";
+        case 500:
+            return "Server Error";
+        default:
+            return "Unknown";
+    }
+}
+
+// Switch 表达式（C# 8.0+）
+public string GetStatus(int code) => code switch
+{
+    200 => "OK",
+    404 => "Not Found",
+    500 => "Server Error",
+    _ => "Unknown"
+};
+```
+
+### 类型模式匹配
+
+```csharp
+public string ProcessObject(object obj) => obj switch
+{
+    string s => $"字符串: {s}",
+    int i when i > 0 => $"正整数: {i}",
+    int i => $"整数: {i}",
+    null => "空值",
+    _ => "未知类型"
+};
+```
+
+### 属性模式匹配
+
+```csharp
+public class Person
+{
+    public string Name { get; set; }
+    public int Age { get; set; }
+}
+
+public string GetPersonInfo(Person person) => person switch
+{
+    { Age: < 18 } => "未成年人",
+    { Age: >= 18 and < 65 } => "成年人",
+    { Age: >= 65 } => "老年人",
+    null => "未知"
+};
+```
+
+### 关系模式（C# 9.0+）
+
+```csharp
+public string GetGrade(int score) => score switch
+{
+    >= 90 => "优秀",
+    >= 80 => "良好",
+    >= 60 => "及格",
+    _ => "不及格"
+};
+```
+
+## 2. 记录类型（Records）
+
+### 基本用法（C# 9.0+）
+
+记录类型提供值相等性，非常适合不可变数据：
+
+```csharp
+// 位置记录（Positional Records）
+public record Person(string Name, int Age);
+
+// 使用
+var person1 = new Person("张三", 25);
+var person2 = new Person("张三", 25);
+Console.WriteLine(person1 == person2); // True（值相等）
+
+// 传统类需要重写 Equals 才能实现值相等
+```
+
+### 带属性的记录
+
+```csharp
+public record Student
+{
+    public string Name { get; init; }
+    public int Age { get; init; }
+    public string School { get; init; }
+}
+
+// 使用 init 访问器，只能在初始化时设置
+var student = new Student
+{
+    Name = "李四",
+    Age = 20,
+    School = "清华大学"
+};
+// student.Name = "王五"; // 编译错误，记录是不可变的
+```
+
+### With 表达式
+
+```csharp
+var person = new Person("张三", 25);
+var olderPerson = person with { Age = 26 }; // 创建新记录，只修改 Age
+
+Console.WriteLine(person.Age);      // 25
+Console.WriteLine(olderPerson.Age);   // 26
+```
+
+### 记录继承
+
+```csharp
+public record Person(string Name, int Age);
+public record Student(string Name, int Age, string School) : Person(Name, Age);
+
+var student = new Student("王五", 22, "北京大学");
+var person = (Person)student; // 可以转换为基类
+```
+
+## 3. 可空引用类型（Nullable Reference Types）
+
+### 启用可空引用类型
+
+在项目文件中启用：
+
+```xml
+<PropertyGroup>
+  <Nullable>enable</Nullable>
+</PropertyGroup>
+```
+
+### 基本用法
+
+```csharp
+// 不可空引用类型（默认）
+string name = "张三";
+string? nullableName = null; // 可空引用类型
+
+// 编译器会警告潜在的空引用
+void ProcessName(string name)
+{
+    Console.WriteLine(name.Length); // 安全，name 不能为 null
+}
+
+void ProcessNullableName(string? name)
+{
+    // Console.WriteLine(name.Length); // 警告：可能为 null
+    if (name != null)
+    {
+        Console.WriteLine(name.Length); // 安全
+    }
+    
+    // 或使用空条件运算符
+    Console.WriteLine(name?.Length ?? 0);
+}
+```
+
+### 空合并赋值运算符
+
+```csharp
+string? name = null;
+name ??= "默认名称"; // 如果 name 为 null，则赋值为 "默认名称"
+```
+
+### 空合并运算符链
+
+```csharp
+string result = name ?? middleName ?? lastName ?? "未知";
+```
+
+## 4. 范围运算符和索引运算符（C# 8.0+）
+
+### 范围运算符
+
+```csharp
+var numbers = new[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+var firstThree = numbers[..3];        // [0, 1, 2]
+var lastThree = numbers[^3..];        // [7, 8, 9]
+var middle = numbers[2..5];           // [2, 3, 4]
+var all = numbers[..];                // 全部元素
+
+// 与 Span<T> 和 ReadOnlySpan<T> 配合使用
+Span<int> span = numbers.AsSpan();
+var slice = span[1..^1]; // 排除首尾元素
+```
+
+### 索引运算符
+
+```csharp
+var numbers = new[] { 0, 1, 2, 3, 4, 5 };
+
+var last = numbers[^1];  // 5（最后一个元素）
+var secondLast = numbers[^2]; // 4（倒数第二个）
+```
+
+## 5. 本地函数（Local Functions）
+
+### 基本用法
+
+```csharp
+public int Calculate(int[] numbers)
+{
+    // 本地函数
+    int Sum(int a, int b) => a + b;
+    
+    int result = 0;
+    foreach (var num in numbers)
+    {
+        result = Sum(result, num);
+    }
+    return result;
+}
+```
+
+### 递归本地函数
+
+```csharp
+public int Factorial(int n)
+{
+    int Fact(int x) => x <= 1 ? 1 : x * Fact(x - 1);
+    return Fact(n);
+}
+```
+
+### 静态本地函数（C# 8.0+）
+
+```csharp
+public void Process()
+{
+    int x = 5;
+    
+    // 静态本地函数不能捕获外部变量
+    static int Add(int a, int b) => a + b;
+    
+    // Add(x, 10); // 错误：x 不能访问
+    var result = Add(5, 10); // OK
+}
+```
+
+## 6. 元组和解构
+
+### 元组语法
+
+```csharp
+// 命名元组
+var person = (Name: "张三", Age: 25);
+Console.WriteLine(person.Name); // 张三
+Console.WriteLine(person.Age);  // 25
+
+// 元组作为返回值
+public (string Name, int Age) GetPerson()
+{
+    return ("李四", 30);
+}
+
+var (name, age) = GetPerson();
+Console.WriteLine($"{name}, {age}");
+```
+
+### 解构
+
+```csharp
+// 解构元组
+var (x, y) = (10, 20);
+
+// 解构自定义类型
+public class Point
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    
+    public void Deconstruct(out int x, out int y)
+    {
+        x = X;
+        y = Y;
+    }
+}
+
+var point = new Point { X = 5, Y = 10 };
+var (px, py) = point; // 解构
+```
+
+### 丢弃变量
+
+```csharp
+var (_, age) = GetPerson(); // 只关心 age，丢弃 name
+var (name, _) = GetPerson(); // 只关心 name，丢弃 age
+```
+
+## 7. 异步流（Async Streams）
+
+### IAsyncEnumerable<T>（C# 8.0+）
+
+```csharp
+public async IAsyncEnumerable<int> GetNumbersAsync()
+{
+    for (int i = 0; i < 10; i++)
+    {
+        await Task.Delay(100);
+        yield return i;
+    }
+}
+
+// 使用
+await foreach (var number in GetNumbersAsync())
+{
+    Console.WriteLine(number);
+}
+```
+
+### 实际应用示例
+
+```csharp
+public async IAsyncEnumerable<string> ReadLinesAsync(string filePath)
+{
+    using var reader = new StreamReader(filePath);
+    string? line;
+    while ((line = await reader.ReadLineAsync()) != null)
+    {
+        yield return line;
+    }
+}
+
+// 使用
+await foreach (var line in ReadLinesAsync("data.txt"))
+{
+    Console.WriteLine(line);
+}
+```
+
+## 8. 默认接口方法（C# 8.0+）
+
+```csharp
+public interface ILogger
+{
+    void Log(string message);
+    
+    // 默认实现
+    void LogError(string message) => Log($"ERROR: {message}");
+    void LogWarning(string message) => Log($"WARNING: {message}");
+}
+
+public class ConsoleLogger : ILogger
+{
+    public void Log(string message) => Console.WriteLine(message);
+    // LogError 和 LogWarning 使用默认实现
+}
+```
+
+## 9. 属性模式增强（C# 10.0+）
+
+### 扩展属性模式
+
+```csharp
+public record Address(string City, string Street);
+public record Person(string Name, Address Address);
+
+public string GetLocation(Person person) => person switch
+{
+    { Address.City: "北京" } => "北京人",
+    { Address.City: "上海" } => "上海人",
+    _ => "其他"
+};
+```
+
+## 10. 文件作用域命名空间（C# 10.0+）
+
+```csharp
+// 传统方式
+namespace MyApp
+{
+    public class MyClass { }
+}
+
+// 文件作用域命名空间（C# 10.0+）
+namespace MyApp;
+
+public class MyClass { } // 整个文件都在 MyApp 命名空间中
+```
+
+## 11. 全局 using 指令（C# 10.0+）
+
+```csharp
+// GlobalUsings.cs
+global using System;
+global using System.Collections.Generic;
+global using System.Linq;
+
+// 其他文件可以直接使用，无需重复 using
+public class MyClass
+{
+    public void Method()
+    {
+        var list = new List<string>(); // 无需 using System.Collections.Generic
+    }
+}
+```
+
+## 12. 原始字符串字面量（C# 11.0+）
+
+```csharp
+// 多行字符串
+var json = """
+{
+    "name": "张三",
+    "age": 25
+}
+""";
+
+// 原始字符串（不转义）
+var path = @"C:\Users\Documents"; // 传统方式
+var path2 = """C:\Users\Documents"""; // C# 11.0+
+
+// 带缩进的原始字符串
+var code = """
+    public void Method()
+    {
+        Console.WriteLine("Hello");
+    }
+    """; // 自动去除缩进
+```
+
+## 13. 泛型属性（C# 11.0+）
+
+```csharp
+public class GenericAttribute<T> : Attribute
+{
+    public T Value { get; }
+    public GenericAttribute(T value) => Value = value;
+}
+
+[GenericAttribute<string>("Hello")]
+[GenericAttribute<int>(42)]
+public class MyClass { }
+```
+
+## 14. 静态抽象接口成员（C# 11.0+）
+
+```csharp
+public interface INumber<T> where T : INumber<T>
+{
+    static abstract T operator +(T left, T right);
+    static abstract T Zero { get; }
+}
+
+public struct MyNumber : INumber<MyNumber>
+{
+    public int Value { get; }
+    
+    public MyNumber(int value) => Value = value;
+    
+    public static MyNumber operator +(MyNumber left, MyNumber right)
+        => new MyNumber(left.Value + right.Value);
+    
+    public static MyNumber Zero => new MyNumber(0);
+}
+```
+
+## 15. 实用技巧组合
+
+### 模式匹配 + 记录类型
+
+```csharp
+public record Order(decimal Amount, string Status);
+
+public decimal CalculateDiscount(Order order) => order switch
+{
+    { Amount: >= 1000, Status: "VIP" } => order.Amount * 0.2m,
+    { Amount: >= 500 } => order.Amount * 0.1m,
+    _ => 0
+};
+```
+
+### 可空引用 + 模式匹配
+
+```csharp
+public string ProcessValue(object? value) => value switch
+{
+    string s => $"字符串: {s}",
+    int i => $"整数: {i}",
+    null => "空值",
+    _ => "未知"
+};
+```
+
+### 异步流 + LINQ
+
+```csharp
+public async IAsyncEnumerable<int> GetEvenNumbersAsync()
+{
+    await foreach (var number in GetNumbersAsync())
+    {
+        if (number % 2 == 0)
+        {
+            yield return number;
+        }
+    }
+}
+```
+
+## 最佳实践
+
+1. **合理使用记录类型**：适合不可变数据模型
+2. **启用可空引用类型**：提高代码安全性
+3. **利用模式匹配**：替代复杂的 if-else 链
+4. **使用异步流**：处理大量异步数据时提高性能
+5. **保持代码简洁**：语法糖的目的是让代码更易读
+
+## 性能考虑
+
+- **记录类型**：值相等性比较可能比引用比较慢，但通常影响很小
+- **模式匹配**：编译器会优化，性能与 if-else 相当
+- **异步流**：适合处理大量数据，避免一次性加载到内存
+
+## 总结
+
+C# 的现代语法糖和特性让代码更加简洁、安全和高效。掌握这些特性可以：
+
+- 提高代码可读性
+- 减少样板代码
+- 增强类型安全
+- 提升开发效率
+
+建议在实际项目中逐步应用这些特性，根据项目需求选择合适的语法糖。
+
+## 参考资料
+
+- [C# 语言参考](https://docs.microsoft.com/zh-cn/dotnet/csharp/)
+- [C# 9.0 新特性](https://docs.microsoft.com/zh-cn/dotnet/csharp/whats-new/csharp-9)
+- [C# 10.0 新特性](https://docs.microsoft.com/zh-cn/dotnet/csharp/whats-new/csharp-10)
+- [C# 11.0 新特性](https://docs.microsoft.com/zh-cn/dotnet/csharp/whats-new/csharp-11)

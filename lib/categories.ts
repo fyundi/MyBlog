@@ -12,19 +12,31 @@ export const CATEGORIES: Record<string, Omit<CategoryInfo, 'count'>> = {
   unity: {
     slug: 'unity',
     name: 'Unity 开发',
-    description: 'Unity 游戏开发相关经验',
+    description: 'Unity 游戏引擎开发经验与技巧',
     icon: '🎮',
   },
   cocos: {
     slug: 'cocos',
     name: 'Cocos 开发',
-    description: 'Cocos Creator 开发相关经验',
+    description: 'Cocos Creator 游戏引擎开发经验',
     icon: '🎯',
+  },
+  tools: {
+    slug: 'tools',
+    name: '开发工具',
+    description: 'Git、版本控制等开发工具的使用技巧',
+    icon: '🛠️',
+  },
+  languages: {
+    slug: 'languages',
+    name: '编程语言',
+    description: 'TypeScript、JavaScript 等编程语言学习笔记',
+    icon: '💻',
   },
   notes: {
     slug: 'notes',
-    name: '个人杂记',
-    description: '日常开发中的思考和总结',
+    name: '技术笔记',
+    description: '日常开发中的技术思考与总结',
     icon: '📝',
   },
 }
