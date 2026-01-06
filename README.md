@@ -73,13 +73,25 @@ MyBlog/
 
 ## 部署
 
-推荐使用 Vercel 进行部署，详见 [项目计划书.md](./项目计划书.md)。
+推荐使用 Vercel 进行部署，详见 [Vercel部署指南.md](./docs/guides/Vercel部署指南.md)。
+
+### 快速部署步骤
+
+1. 推送代码到 GitHub（仓库建议设为 Public）
+2. 在 [Vercel](https://vercel.com) 导入项目
+3. 配置环境变量 `NEXT_PUBLIC_SITE_URL`（可选，用于 SEO）
+4. 自动部署完成
+
+详细步骤请查看 [Vercel部署指南.md](./docs/guides/Vercel部署指南.md)。
 
 ## 文档
 
-- 📖 **[使用指南.md](./使用指南.md)** - 详细的使用说明（**推荐先看这个**）
-- 📋 [项目计划书.md](./项目计划书.md) - 技术文档和实施计划
-- ✅ [实施总结.md](./实施总结.md) - 已完成功能列表
+项目文档位于 `docs/` 目录：
+
+- 📖 **[使用指南.md](./docs/guides/使用指南.md)** - 详细的使用说明（**推荐先看这个**）
+- 🚀 [Vercel部署指南.md](./docs/guides/Vercel部署指南.md) - Vercel 部署完整指南
+- 📋 [项目计划书.md](./docs/project/项目计划书.md) - 技术文档和实施计划
+- ✅ [实施总结.md](./docs/project/实施总结.md) - 已完成功能列表
 
 ## 快速参考
 
@@ -97,4 +109,4 @@ MyBlog/
 2. 在 Vercel 导入项目
 3. 自动部署完成
 
-更多详细信息请查看 [使用指南.md](./使用指南.md)。
+更多详细信息请查看 [docs/guides/使用指南.md](./docs/guides/使用指南.md)。
