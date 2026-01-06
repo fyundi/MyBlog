@@ -23,6 +23,10 @@
 - `项目计划书.md` - 项目初始计划文档
 - `实施总结.md` - 项目实施总结
 
+### 📐 rules/ - 格式规范
+包含文档格式和编写规范：
+- `markdown-format-guide.md` - Markdown 文档格式规范指南 ⭐ 必读
+
 ## 快速导航
 
 - **新手入门**：查看 `guides/使用指南.md`
@@ -31,3 +35,4 @@
 - **SEO 配置**：查看 `guides/部署和SEO配置指南.md`
 - **了解设计**：查看 `design/设计参考说明.md`
 - **项目概览**：查看 `project/项目计划书.md` 和 `project/实施总结.md`
+- **文档格式规范**：查看 `rules/markdown-format-guide.md` ⭐ 编写文档前必读

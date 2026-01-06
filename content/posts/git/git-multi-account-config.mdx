@@ -1,0 +1,456 @@
+---
+title: "Git多账户配置指南"
+date: "2024-12-21"
+category: "git"
+tags: ["Git", "GitHub", "多账户", "SSH", "配置", "版本控制"]
+description: "详细介绍在同一台电脑上配置多个Git账户的方法，包括HTTPS和SSH两种方案，适用于工作账户和个人账户的切换"
+featured: true
+---
+
+# Git多账户配置指南
+
+## 概述
+
+在实际开发中，我们经常需要在同一台电脑上使用多个 Git 账户，例如：
+- **工作账户**：用于公司项目的代码管理
+- **个人账户**：用于个人项目和开源贡献
+
+本文详细介绍两种配置方案，帮助你轻松管理多个 Git 账户，避免账户混淆和权限问题。
+
+## 使用场景
+
+- 同时使用工作账户和个人账户
+- 需要为不同项目使用不同的 Git 账户
+- 避免提交时使用错误的账户信息
+- 需要安全地管理多个账户的认证信息
+
+## 方案对比
+
+| 方案 | 优点 | 缺点 | 适用场景 |
+|------|------|------|----------|
+| **HTTPS + Token** | 配置简单，无需管理SSH密钥 | 需要定期更新Token | 偶尔推送个人项目 |
+| **SSH + 多账户** | 一次配置长期使用，无需输入密码 | 配置相对复杂 | 频繁使用多个账户 |
+
+## 方案一：HTTPS + Personal Access Token（推荐新手）
+
+### 优点
+
+- ✅ 配置简单，不需要管理多个 SSH 密钥
+- ✅ 适合偶尔推送个人项目
+- ✅ 不需要修改系统 SSH 配置
+
+### 第一步：设置项目本地 Git 配置
+
+进入项目目录，设置本地 Git 配置（只对当前项目生效）：
+
+```bash
+cd /path/to/your/project
+
+# 设置本地用户名（替换为你的个人 GitHub 用户名）
+# 使用 --local 参数只影响当前仓库，不会覆盖全局配置
+git config --local user.name "your-personal-username"
+
+# 设置本地邮箱（替换为你的个人 GitHub 邮箱）
+git config --local user.email "your-personal-email@example.com"
+```
+
+### 第二步：创建 GitHub Personal Access Token
+
+1. 访问 [GitHub Token 设置页面](https://github.com/settings/tokens)
+2. 点击 **"Generate new token"** → **"Generate new token (classic)"**
+3. 填写信息：
+   - **Note**: 个人项目访问令牌（可自定义）
+   - **Expiration**: 选择过期时间（建议 90 天或 No expiration）
+   - **Scopes**: 勾选 repo（完整仓库权限）
+4. 点击 **"Generate token"**
+5. **重要**：复制生成的 token（只显示一次，请妥善保存）
+
+### 第三步：添加远程仓库
+
+```bash
+# 添加远程仓库（替换 YOUR_USERNAME 为你的个人 GitHub 用户名）
+git remote add origin https://github.com/YOUR_USERNAME/your-repo.git
+
+# 或者如果已存在，更新远程仓库地址
+git remote set-url origin https://github.com/YOUR_USERNAME/your-repo.git
+```
+
+### 第四步：推送代码
+
+```bash
+# 提交更改
+git add .
+git commit -m "feat: 初始化项目"
+
+# 推送到 GitHub
+# 注意：推送时，Git 会提示输入用户名和密码
+# 用户名：输入你的 GitHub 用户名
+# 密码：输入刚才生成的 Personal Access Token（不是 GitHub 账户密码）
+git push -u origin main
+```
+
+### 配置凭证存储（可选）
+
+为了避免每次推送都输入 token，可以配置凭证存储：
+
+```bash
+# macOS - 使用 Keychain
+git config --global credential.helper osxkeychain
+
+# Linux - 使用缓存（15分钟）
+git config --global credential.helper cache
+
+# Windows - 使用 Windows Credential Manager
+git config --global credential.helper wincred
+```
+
+配置后，首次推送输入 token，系统会记住凭证，后续推送无需重复输入。
+
+## 方案二：SSH + 多账户配置（推荐频繁使用）
+
+### 优点
+
+- ✅ 一次配置，长期使用
+- ✅ 不需要每次输入密码
+- ✅ 更安全，使用密钥认证
+- ✅ 适合频繁使用多个账户的场景
+
+### 第一步：检查或生成个人账户 SSH 密钥
+
+```bash
+# 检查是否已有个人账户的 SSH 密钥
+ls -la ~/.ssh/id_rsa_personal* 2>/dev/null || echo "未找到个人账户密钥"
+
+# 如果没有，生成新的 SSH 密钥（替换为你的个人 GitHub 邮箱）
+# -t ed25519: 使用 Ed25519 算法（推荐，更安全）
+# -C: 添加注释（通常是邮箱地址）
+# -f: 指定密钥文件名
+ssh-keygen -t ed25519 -C "your-personal-email@example.com" -f ~/.ssh/id_rsa_personal
+
+# 按提示操作：
+# - 可以直接回车使用默认设置
+# - 或设置密码保护（推荐）
+```
+
+### 第二步：将公钥添加到 GitHub
+
+```bash
+# 显示公钥内容
+cat ~/.ssh/id_rsa_personal.pub
+
+# 复制输出的内容（从 ssh-ed25519 开始到邮箱结束）
+```
+
+然后：
+
+1. 访问 [GitHub SSH 密钥设置页面](https://github.com/settings/keys)
+2. 点击 **"New SSH key"**
+3. 填写信息：
+   - **Title**: MacBook - 个人账户（可自定义）
+   - **Key**: 粘贴刚才复制的公钥内容
+4. 点击 **"Add SSH key"**
+
+### 第三步：配置 SSH config
+
+编辑 SSH 配置文件：
+
+```bash
+# 编辑 SSH config 文件
+nano ~/.ssh/config
+
+# 或使用其他编辑器
+# code ~/.ssh/config
+# vim ~/.ssh/config
+```
+
+添加以下配置：
+
+```ssh
+# 个人 GitHub 账户
+Host github-personal
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_rsa_personal
+    IdentitiesOnly yes
+
+# 工作 GitHub 账户（如果已有，保持不变）
+Host github-work
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_rsa
+    IdentitiesOnly yes
+
+# 默认 GitHub（使用个人账户）
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_rsa_personal
+    IdentitiesOnly yes
+```
+
+保存并退出编辑器（nano 编辑器：按 Ctrl + X，然后按 Y，最后按 Enter）。
+
+### 第四步：测试 SSH 连接
+
+```bash
+# 测试个人账户连接
+ssh -T git@github-personal
+
+# 应该看到：Hi YOUR_USERNAME! You've successfully authenticated...
+```
+
+如果看到成功消息，说明 SSH 配置正确。
+
+### 第五步：设置项目本地 Git 配置
+
+```bash
+cd /path/to/your/project
+
+# 设置本地用户名
+git config --local user.name "your-personal-username"
+
+# 设置本地邮箱
+git config --local user.email "your-personal-email@example.com"
+```
+
+### 第六步：添加远程仓库并推送
+
+```bash
+# 使用 SSH URL（替换 YOUR_USERNAME）
+git remote add origin git@github-personal:YOUR_USERNAME/your-repo.git
+
+# 或者如果使用默认配置
+git remote add origin git@github.com:YOUR_USERNAME/your-repo.git
+
+# 提交并推送
+git add .
+git commit -m "feat: 初始化项目"
+# 使用 git@github-personal 会使用个人账户的 SSH 密钥
+# 使用 git@github.com 会使用默认配置的密钥
+git push -u origin main
+```
+
+## 验证配置
+
+### 检查 Git 配置
+
+```bash
+cd /path/to/your/project
+
+# 查看本地配置
+git config --local --list | grep user
+
+# 应该显示：
+# user.name=your-personal-username
+# user.email=your-personal-email@example.com
+```
+
+### 检查远程仓库
+
+```bash
+# 查看远程仓库地址
+git remote -v
+
+# HTTPS 方案应该显示：
+# origin  https://github.com/YOUR_USERNAME/your-repo.git (fetch)
+# origin  https://github.com/YOUR_USERNAME/your-repo.git (push)
+
+# SSH 方案应该显示：
+# origin  git@github-personal:YOUR_USERNAME/your-repo.git (fetch)
+# origin  git@github-personal:YOUR_USERNAME/your-repo.git (push)
+```
+
+### 检查提交信息
+
+```bash
+# 查看最近的提交
+git log --oneline -5
+
+# 查看提交的详细信息
+git log --format="%h - %an <%ae> - %s" -5
+
+# 应该显示正确的用户名和邮箱
+```
+
+## 账户切换
+
+### 在不同项目间切换账户
+
+**工作项目**（使用工作账户）：
+
+```bash
+cd /path/to/work/project
+
+# 设置工作账户信息
+git config --local user.name "work-username"
+git config --local user.email "work-email@company.com"
+
+# 使用工作账户的 SSH 配置
+git remote set-url origin git@github-work:work-org/repo.git
+```
+
+**个人项目**（使用个人账户）：
+
+```bash
+cd /path/to/personal/project
+
+# 设置个人账户信息
+git config --local user.name "personal-username"
+git config --local user.email "personal-email@example.com"
+
+# 使用个人账户的 SSH 配置
+git remote set-url origin git@github-personal:personal-username/repo.git
+```
+
+### 查看当前使用的账户
+
+```bash
+# 查看全局配置
+git config --global user.name
+git config --global user.email
+
+# 查看本地配置（优先级更高）
+git config --local user.name
+git config --local user.email
+
+# 查看所有配置
+git config --list --show-origin
+```
+
+## 最佳实践
+
+### 1. 使用本地配置而非全局配置
+
+```bash
+# ✅ 推荐：为每个项目设置本地配置
+git config --local user.name "project-username"
+git config --local user.email "project-email@example.com"
+
+# ❌ 不推荐：修改全局配置（会影响所有项目）
+git config --global user.name "username"
+```
+
+### 2. SSH 密钥命名规范
+
+```bash
+# 个人账户
+~/.ssh/id_rsa_personal
+~/.ssh/id_ed25519_personal
+
+# 工作账户
+~/.ssh/id_rsa_work
+~/.ssh/id_ed25519_work
+
+# 其他账户
+~/.ssh/id_rsa_other
+```
+
+### 3. Personal Access Token 管理
+
+- ✅ 为不同用途创建不同的 token
+- ✅ 设置合理的过期时间
+- ✅ 定期轮换 token
+- ❌ 不要将 token 提交到代码仓库
+- ❌ 不要在公开场合分享 token
+
+### 4. SSH 密钥安全
+
+- ✅ 为 SSH 密钥设置密码保护
+- ✅ 定期检查已添加的 SSH 密钥
+- ✅ 删除不再使用的密钥
+- ❌ 不要将私钥分享给他人
+
+## 常见问题
+
+### Q1: 推送时提示权限被拒绝
+
+**HTTPS 方案**：检查 token 是否过期，确认 token 有 repo 权限，确认用户名和 token 输入正确。
+
+**SSH 方案**：运行以下命令测试连接：
+
+```bash
+ssh -T git@github-personal
+```
+
+如果连接失败，检查 SSH config 配置是否正确，确认公钥已添加到 GitHub，检查私钥文件权限：
+
+```bash
+chmod 600 ~/.ssh/id_rsa_personal
+```
+
+### Q2: 如何切换回工作账户？
+
+```bash
+# 在工作项目中使用
+cd /path/to/work/project
+git config --local user.name "work-username"
+git config --local user.email "work-email@company.com"
+git remote set-url origin git@github-work:work-org/repo.git
+```
+
+### Q3: 提交时使用了错误的账户信息怎么办？
+
+```bash
+# 修改最近一次提交的作者信息
+git commit --amend --author="正确用户名 <正确邮箱>"
+
+# 如果已经推送，需要强制推送（谨慎使用）
+git push --force-with-lease origin main
+```
+
+### Q4: 如何同时管理多个 SSH 密钥？
+
+确保 SSH config 中为每个账户配置了不同的 Host 和 IdentityFile：
+
+```ssh
+Host github-personal
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_rsa_personal
+    IdentitiesOnly yes
+
+Host github-work
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_rsa_work
+    IdentitiesOnly yes
+```
+
+然后在不同的项目中使用对应的 Host：
+
+```bash
+# 个人项目
+git remote set-url origin git@github-personal:username/repo.git
+
+# 工作项目
+git remote set-url origin git@github-work:org/repo.git
+```
+
+### Q5: Token 过期后怎么办？
+
+1. 重新生成新的 Personal Access Token
+2. 更新凭证存储：
+   ```bash
+   # macOS
+   # 打开"钥匙串访问"，搜索 github.com，删除旧凭证
+   
+   # 或使用命令行
+   git credential-osxkeychain erase
+   host=github.com
+   protocol=https
+   # 按两次回车
+   ```
+3. 下次推送时输入新的 token
+
+## 总结
+
+通过本文介绍的两种方案，你可以轻松在同一台电脑上管理多个 Git 账户。**HTTPS + Token 方案**适合偶尔推送个人项目，配置简单；**SSH + 多账户方案**适合频繁使用多个账户，一次配置长期使用。
+
+无论选择哪种方案，关键是要为每个项目设置正确的本地 Git 配置，使用正确的远程仓库地址，保护好认证信息（Token 或 SSH 密钥），并定期检查和更新配置。掌握多账户配置后，你就可以在不同项目间自由切换，而不用担心账户混淆的问题。
+
+## 参考资料
+
+- [Git 官方文档 - 配置](https://git-scm.com/book/zh/v2/起步-初次运行-Git-前的配置)
+- [GitHub 文档 - Personal Access Tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token)
+- [GitHub 文档 - SSH 密钥](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
+- [Git 凭证存储](https://git-scm.com/book/zh/v2/Git-工具-凭证存储)

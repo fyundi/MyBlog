@@ -16,7 +16,7 @@ export default function Header({ posts }: HeaderProps = {}) {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between py-4">
           <Link href="/" className="text-2xl font-bold gradient-text cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded">
-            游戏开发技术笔记
+            游戏开发随记
           </Link>
           <nav className="hidden md:flex items-center gap-6">
             <Link

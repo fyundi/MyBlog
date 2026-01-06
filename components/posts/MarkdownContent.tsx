@@ -3,6 +3,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
+import rehypeSlug from 'rehype-slug'
 import Mermaid from '@/components/ui/Mermaid'
 import CopyButton from '@/components/ui/CopyButton'
 
@@ -19,7 +20,7 @@ export default function MarkdownContent({ content }: MarkdownContentProps) {
     <div className="markdown-content">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
+        rehypePlugins={[rehypeSlug, rehypeRaw]}
         components={{
           code({ node, inline, className, children, ...props }: any) {
             const match = /language-(\w+)/.exec(className || '')
@@ -77,23 +78,39 @@ export default function MarkdownContent({ content }: MarkdownContentProps) {
               </code>
             )
           },
-        h1: ({ children }) => (
-          <h1 className="text-4xl font-bold mt-12 mb-8 text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-4 leading-tight">
+        h1: ({ children, ...props }) => (
+          <h1 
+            id={props.id as string}
+            className="text-4xl font-bold mt-12 mb-8 text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-4 leading-tight scroll-mt-20"
+            {...props}
+          >
             {children}
           </h1>
         ),
-        h2: ({ children }) => (
-          <h2 className="text-3xl font-semibold mt-10 mb-6 text-gray-900 dark:text-gray-100 leading-tight">
+        h2: ({ children, ...props }) => (
+          <h2 
+            id={props.id as string}
+            className="text-3xl font-semibold mt-10 mb-6 text-gray-900 dark:text-gray-100 leading-tight scroll-mt-20"
+            {...props}
+          >
             {children}
           </h2>
         ),
-        h3: ({ children }) => (
-          <h3 className="text-2xl font-semibold mt-8 mb-4 text-gray-900 dark:text-gray-100 leading-tight">
+        h3: ({ children, ...props }) => (
+          <h3 
+            id={props.id as string}
+            className="text-2xl font-semibold mt-8 mb-4 text-gray-900 dark:text-gray-100 leading-tight scroll-mt-20"
+            {...props}
+          >
             {children}
           </h3>
         ),
-        h4: ({ children }) => (
-          <h4 className="text-xl font-semibold mt-6 mb-3 text-gray-900 dark:text-gray-100 leading-tight">
+        h4: ({ children, ...props }) => (
+          <h4 
+            id={props.id as string}
+            className="text-xl font-semibold mt-6 mb-3 text-gray-900 dark:text-gray-100 leading-tight scroll-mt-20"
+            {...props}
+          >
             {children}
           </h4>
         ),

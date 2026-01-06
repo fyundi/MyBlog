@@ -29,7 +29,7 @@ git commit -m "feat: 优化标题和副标题，完善SEO配置"
 2. 点击右上角 **"+"** → **"New repository"**
 3. 填写仓库信息：
    - **Repository name**: `MyBlog`（或你喜欢的名字）
-   - **Description**: "游戏开发技术笔记 - 记录开发过程中的技术笔记与实践经验"
+   - **Description**: "游戏开发随记 - 记录开发过程中的技术笔记与实践经验"
    - 选择 **Public**（公开）或 **Private**（私有）
    - **不要**勾选 "Initialize this repository with a README"
 4. 点击 **"Create repository"**
@@ -70,13 +70,13 @@ openGraph: {
   type: 'website',
   locale: 'zh_CN',
   url: 'https://your-actual-domain.vercel.app', // 替换为实际域名
-  siteName: '游戏开发技术笔记',
-  title: '游戏开发技术笔记',
+  siteName: '游戏开发随记',
+  title: '游戏开发随记',
   description: '记录开发过程中的技术笔记与实践经验',
 },
 twitter: {
   card: 'summary_large_image',
-  title: '游戏开发技术笔记',
+  title: '游戏开发随记',
   description: '记录开发过程中的技术笔记与实践经验',
 },
 ```
@@ -109,7 +109,7 @@ export default function robots(): MetadataRoute.Robots {
 
 #### 2.1 基础元数据（`app/layout.tsx`）
 
-- **title**: 页面标题，支持模板（`%s | 游戏开发技术笔记`）
+- **title**: 页面标题，支持模板（`%s | 游戏开发随记`）
 - **description**: 网站描述，用于搜索引擎摘要
 - **keywords**: 关键词数组，帮助搜索引擎理解内容
 - **authors**: 作者信息
@@ -182,7 +182,7 @@ export async function generateMetadata({
       datePublished: post.date,
       author: {
         '@type': 'Person',
-        name: '游戏开发技术笔记',
+        name: '游戏开发随记',
       },
     }),
   }}

@@ -11,7 +11,7 @@ export default function Home() {
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <section className="mb-20 text-center">
         <h1 className="text-5xl md:text-6xl font-bold mb-6 gradient-text">
-          游戏开发技术笔记
+          游戏开发随记
         </h1>
         <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
           记录开发过程中的技术笔记与实践经验

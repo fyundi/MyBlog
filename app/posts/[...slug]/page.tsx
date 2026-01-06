@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import type { Metadata } from 'next'
 import MarkdownContent from '@/components/posts/MarkdownContent'
+import TableOfContents from '@/components/posts/TableOfContents'
+import { extractHeadings } from '@/lib/toc'
 
 interface PostPageProps {
   params: {
@@ -49,10 +51,11 @@ export default async function PostPage({ params }: PostPageProps) {
     notFound()
   }
 
+  const headings = extractHeadings(post.content)
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="max-w-3xl mx-auto">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12">
+      <div className="max-w-3xl mx-auto relative xl:mr-80">
         <article>
           <header className="mb-16 pb-10 border-b border-gray-200 dark:border-gray-800">
             <h1 className="text-4xl md:text-5xl font-bold mb-8 text-gray-900 dark:text-gray-100 leading-tight">
@@ -81,6 +84,7 @@ export default async function PostPage({ params }: PostPageProps) {
             <MarkdownContent content={post.content} />
           </div>
         </article>
+        <TableOfContents headings={headings} />
       </div>
     </div>
   )

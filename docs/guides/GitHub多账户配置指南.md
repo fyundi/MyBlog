@@ -61,7 +61,7 @@ git config --local user.email "你的个人GitHub邮箱"
 1. 访问 https://github.com/new
 2. 填写信息：
    - **Repository name**: `MyBlog`
-   - **Description**: `游戏开发技术笔记 - 记录开发过程中的技术笔记与实践经验`
+   - **Description**: `游戏开发随记 - 记录开发过程中的技术笔记与实践经验`
    - 选择 **Public** 或 **Private**
    - **不要**勾选 "Initialize this repository with a README"
 3. 点击 **"Create repository"**
