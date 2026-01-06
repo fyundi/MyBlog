@@ -3,7 +3,7 @@ import { getAllPosts, getAllTags } from '@/lib/posts'
 import { getAllCategoryInfos } from '@/lib/categories'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://your-blog.vercel.app'
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://your-blog.vercel.app'
   const posts = getAllPosts()
   const categories = getAllCategoryInfos()
   const tags = getAllTags()

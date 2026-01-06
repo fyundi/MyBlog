@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'zh_CN',
-    url: 'https://your-blog.vercel.app',
+    url: process.env.NEXT_PUBLIC_SITE_URL || 'https://your-blog.vercel.app',
     siteName: '游戏开发随记',
     title: '游戏开发随记',
     description: '记录开发过程中的技术笔记与实践经验',

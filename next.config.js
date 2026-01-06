@@ -21,6 +21,12 @@ const nextConfig = {
     if (isServer) {
       config.externals = config.externals || []
       config.externals.push('mermaid')
+    } else {
+      // 客户端构建时，忽略 mermaid 的可选依赖
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'd3-sankey': false,
+      }
     }
     return config
   },
